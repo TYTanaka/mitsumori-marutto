@@ -31,6 +31,10 @@ export function Simulator() {
         </div>
       )}
 
+      <p className="muted">
+        バーの長さは、全式場の中で最も高い予測額（{man(maxHigh)}）を100%として表示しています。
+      </p>
+
       {predictions.map(({ venue, prediction }) => {
         const { base, low, high, mid } = prediction;
 

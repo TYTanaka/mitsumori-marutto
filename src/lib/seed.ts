@@ -32,7 +32,7 @@ export function createSeedState(): AppState {
       {
         id: 'va',
         name: '青山ガーデンテラス',
-        memo: '初期見積もりは最安。衣装・装花は最低ランク構成',
+        memo: '初期見積もりは最安。衣装・装花は最低ランク構成。ゲストは10名ほど増える見込み',
         baseGuests: 60,
       },
       {

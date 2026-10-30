@@ -111,15 +111,17 @@ export function EstimateEditor() {
                 <input
                   className="input item-amount"
                   aria-label="金額"
-                  type="number"
-                  min={0}
-                  value={item.amount}
-                  onChange={(event) =>
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
+                  value={item.amount === 0 ? '' : item.amount.toLocaleString('ja-JP')}
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/[^0-9]/g, '');
                     dispatch({
                       type: 'updateItem',
-                      item: { ...item, amount: Number(event.target.value) || 0 },
-                    })
-                  }
+                      item: { ...item, amount: digits === '' ? 0 : Number(digits) },
+                    });
+                  }}
                 />
                 <button
                   className="icon-btn"

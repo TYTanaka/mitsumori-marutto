@@ -799,3 +799,9 @@ p {
     scroll-behavior: auto !important;
   }
 }
+
+/* ===== 磨き上げ（視覚レビュー対応） ===== */
+.item-row { grid-template-columns: 178px minmax(0, 1fr) 150px 40px; }
+.item-amount { text-align: right; font-variant-numeric: tabular-nums; }
+.compare-table .cheapest { background: #EDDCAB; }
+.add-row { border-top: 1px dashed var(--line-strong); padding-top: 12px; }

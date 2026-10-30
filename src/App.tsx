@@ -38,7 +38,10 @@ function Shell() {
               role="tab"
               aria-selected={tab === entry.id}
               aria-controls="main-panel"
-              onClick={() => setTab(entry.id)}
+              onClick={() => {
+                setTab(entry.id);
+                window.scrollTo({ top: 0 });
+              }}
             >
               {entry.label}
             </button>
