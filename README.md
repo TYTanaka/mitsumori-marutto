@@ -1,32 +1,51 @@
-# React + TypeScript + Vite
+# みつもりまるっと（Mitsumori Marutto）
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+結婚式場の「初期見積もり」を、共通項目で比べ直し、最終総額の目安まで見える化するWebアプリです。
 
-Currently, two official plugins are available:
+🔗 **公開デモ**: https://tytanaka.github.io/mitsumori-marutto/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## なぜ作ったか
 
-## React Compiler
+結婚式場の初期見積もりは、衣装・装花・映像などが最低ランクの構成で作られていることが多く、
+打ち合わせを重ねるうちに総額が大きく上がっていきます。しかも式場ごとに項目名がバラバラで、
+カップルは見積もり同士を横並びで比較できません。最初の金額に引っ張られて選んでしまう
+（アンカリング）ことが、後悔の大きな原因になっています。
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+本アプリは、見積もりを9つの共通カテゴリに揃えて比較し、「上がりやすい項目」の想定を
+入れることで最終総額の予測レンジを表示します。サンプルデータでは、初期見積もりが
+最安の式場が、想定を入れると予測総額で2位に下がる「順位の入れ替わり」が体験できます。
 
-## Expanding the Oxlint configuration
+※ 予測は一般的な目安であり、正確な金額を保証するものではありません（アプリ内でも明示しています）。
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## 主な機能
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+- **見積もり入力**: 式場ごとに明細を登録（カテゴリ・項目名・金額）。合計は自動計算
+- **比較表**: カテゴリ×式場のマトリクス表示。カテゴリごとの最安を色付けし、初期総額と予測総額を並べて表示
+- **総額シミュレーション**: カテゴリ別に「上がり想定」（そのまま／標準／高め）とゲスト人数の増減を設定し、
+  初期総額バーと予測レンジバーで差額と順位変動を可視化
+- **自動保存**: 変更はブラウザに自動保存され、再訪時に復元
+
+## 技術構成と設計判断
+
+| 領域 | 選定 | 理由 |
+| --- | --- | --- |
+| 言語/基盤 | TypeScript + React 19 + Vite | 型安全なUI開発、高速な開発体験 |
+| 状態管理 | useReducer + Context | 状態遷移を純粋関数としてテスト可能に |
+| ドメイン層 | `src/lib/` に純粋関数を分離 | 集計・総額予測・順位判定をUIから切り離し単体テストで担保 |
+| 予測モデル | カテゴリ別の上がり率レンジ＋人数換算 | 「点」ではなく「レンジ」で示し、目安であることを誤解させない |
+| テスト | Vitest + Testing Library（17件） | 計算ロジック、状態遷移、画面のスモークテストまで自動化 |
+| デザイン | デザイントークン（CSS変数）で一元管理 | 数字の読みやすさを最優先。ネイビー×ゴールドで「見積書」の信頼感を表現 |
+
+## 開発
+
+```bash
+npm install
+npm run dev      # 開発サーバー
+npm run test     # テスト
+npm run build    # 本番ビルド
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+---
+
+就職活動（フロントエンドエンジニア志望）のポートフォリオとして開発しています。
+姉妹作品：席次表＋Web招待状アプリ「席次まるっと」 https://tytanaka.github.io/sekiji-marutto/
