@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { AppState, Assumptions } from '../types';
 import { CATEGORIES, defaultAssumptions } from './categories';
 import {
+  categoryItemCount,
   categoryTotal,
   comparisonMatrix,
   perHeadCost,
@@ -190,6 +191,44 @@ describe('calculations', () => {
       v1: venueTotal(state, 'v1'),
       v2: venueTotal(state, 'v2'),
     });
+  });
+
+  it('marks categories with no items as null instead of 0 in the matrix', () => {
+    const state = fixture();
+    const matrix = comparisonMatrix(state);
+
+    // v2 has no gifts or flowers items at all: 未計上, not ¥0.
+    expect(categoryItemCount(state, 'v2', 'gifts')).toBe(0);
+    expect(
+      matrix.rows.find((row) => row.category === 'gifts')?.cells,
+    ).toEqual({ v1: 120_000, v2: null });
+    expect(
+      matrix.rows.find((row) => row.category === 'flowers')?.cells,
+    ).toEqual({ v1: null, v2: null });
+    expect(
+      matrix.rows.find((row) => row.category === 'flowers')?.cheapestVenueId,
+    ).toBeNull();
+  });
+
+  it('keeps a registered 0-yen item as 0, distinct from a missing category', () => {
+    const state = fixture();
+    state.items.push({
+      id: 'i-zero',
+      venueId: 'v1',
+      category: 'flowers',
+      name: 'Free flowers',
+      amount: 0,
+    });
+
+    const row = comparisonMatrix(state).rows.find(
+      (entry) => entry.category === 'flowers',
+    );
+
+    expect(categoryItemCount(state, 'v1', 'flowers')).toBe(1);
+    expect(row?.cells).toEqual({ v1: 0, v2: null });
+    // A registered ¥0 is still excluded from the cheapest highlight,
+    // consistent with the previous amount > 0 rule.
+    expect(row?.cheapestVenueId).toBeNull();
   });
 
   it('detects rank flips caused by differing category uplifts', () => {

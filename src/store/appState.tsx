@@ -3,11 +3,13 @@ import {
   useContext,
   useEffect,
   useReducer,
+  useSyncExternalStore,
   type Dispatch,
   type ReactNode,
 } from 'react';
 import type { AppState, CategoryId, LineItem, UpliftLevel } from '../types';
 import { defaultAssumptions } from '../lib/categories';
+import { clampBaseGuests } from '../lib/guests';
 import { createSeedState } from '../lib/seed';
 
 export type Action =
@@ -27,6 +29,20 @@ export type Action =
   | { type: 'setGuestDelta'; venueId: string; delta: number }
   | { type: 'reset' }
   | { type: 'hydrate'; state: AppState };
+
+function normalizeState(state: AppState): AppState {
+  return {
+    ...state,
+    venues: state.venues.map((venue, index) => ({
+      ...venue,
+      baseGuests: clampBaseGuests(venue.baseGuests),
+      // A venue must never end up with a blank name: headings in the
+      // comparison table and simulator would render empty. Fall back
+      // to the positional default name instead.
+      name: venue.name.trim() === '' ? `式場${index + 1}` : venue.name,
+    })),
+  };
+}
 
 let counter = 0;
 
@@ -74,22 +90,27 @@ export function reducer(state: AppState, action: Action): AppState {
       };
     }
 
-    case 'renameVenue':
+    case 'renameVenue': {
+      // Blank or whitespace-only names are rejected so a venue can
+      // never lose its heading; the editor also discards blank drafts.
+      const trimmed = action.name.trim();
+
       return {
         ...state,
         venues: state.venues.map((venue) =>
-          venue.id === action.venueId
-            ? { ...venue, name: action.name }
+          venue.id === action.venueId && trimmed !== ''
+            ? { ...venue, name: trimmed }
             : venue,
         ),
       };
+    }
 
     case 'setBaseGuests':
       return {
         ...state,
         venues: state.venues.map((venue) =>
           venue.id === action.venueId
-            ? { ...venue, baseGuests: action.baseGuests }
+            ? { ...venue, baseGuests: clampBaseGuests(action.baseGuests) }
             : venue,
         ),
       };
@@ -148,7 +169,10 @@ export function reducer(state: AppState, action: Action): AppState {
       return createSeedState();
 
     case 'hydrate':
-      return action.state;
+      // Persisted states from before guest-count validation existed may
+      // hold 0 or negative headcounts (or blank venue names); normalize
+      // them on the way in.
+      return normalizeState(action.state);
   }
 }
 
@@ -171,7 +195,7 @@ function loadInitialState(): AppState {
         'items' in parsed &&
         Array.isArray(parsed.items)
       ) {
-        return parsed as AppState;
+        return normalizeState(parsed as AppState);
       }
     }
   } catch {
@@ -184,21 +208,50 @@ function loadInitialState(): AppState {
 const AppStateContext = createContext<{
   state: AppState;
   dispatch: Dispatch<Action>;
+  /** True when the latest attempt to persist state to localStorage failed. */
+  saveFailed: boolean;
 } | null>(null);
+
+// Save-failure status as a tiny external store: the persistence
+// effect below reports into it, and the provider reads it with
+// useSyncExternalStore (avoids setState-in-effect for a value that
+// genuinely comes from an external system).
+let saveFailedValue = false;
+const saveFailedListeners = new Set<() => void>();
+
+function reportSaveResult(failed: boolean) {
+  if (saveFailedValue === failed) return;
+  saveFailedValue = failed;
+  saveFailedListeners.forEach((listener) => listener());
+}
+
+function subscribeSaveFailed(listener: () => void) {
+  saveFailedListeners.add(listener);
+  return () => {
+    saveFailedListeners.delete(listener);
+  };
+}
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadInitialState);
+  const saveFailed = useSyncExternalStore(
+    subscribeSaveFailed,
+    () => saveFailedValue,
+  );
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      reportSaveResult(false);
     } catch {
-      // Keep the app usable when storage is unavailable.
+      // Keep the app usable when storage is unavailable, but surface
+      // the failure instead of silently dropping the user's data.
+      reportSaveResult(true);
     }
   }, [state]);
 
   return (
-    <AppStateContext.Provider value={{ state, dispatch }}>
+    <AppStateContext.Provider value={{ state, dispatch, saveFailed }}>
       {children}
     </AppStateContext.Provider>
   );

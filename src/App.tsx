@@ -14,9 +14,14 @@ const tabs: { id: Tab; label: string }[] = [
 ];
 
 function Shell() {
-  const { dispatch } = useAppState();
+  const { dispatch, saveFailed } = useAppState();
   const [tab, setTab] = useState<Tab>('estimate');
   const [confirmingReset, setConfirmingReset] = useState(false);
+
+  const goTo = (next: Tab) => {
+    setTab(next);
+    window.scrollTo({ top: 0 });
+  };
 
   return (
     <>
@@ -38,10 +43,7 @@ function Shell() {
               role="tab"
               aria-selected={tab === entry.id}
               aria-controls="main-panel"
-              onClick={() => {
-                setTab(entry.id);
-                window.scrollTo({ top: 0 });
-              }}
+              onClick={() => goTo(entry.id)}
             >
               {entry.label}
             </button>
@@ -50,20 +52,42 @@ function Shell() {
       </header>
 
       <main className="container">
-        <section className="hero">
-          <h1>最初の見積もりだけで、選んでいませんか。</h1>
-          <p>
-            式場の初期見積もりは最低ランクの構成で作られがちです。項目を揃えて比べ、「上がりやすい分」まで見える化すると、本当の総額で選べます。
+        {saveFailed && (
+          <p className="save-error" role="alert">
+            データを保存できませんでした。ブラウザの空き容量やプライベートモードの設定をご確認ください（このまま操作は続けられますが、ページを閉じると変更が失われます）。
           </p>
-        </section>
+        )}
+        {tab === 'estimate' ? (
+          <section className="hero">
+            <h1>最初の見積もりだけで、選んでいませんか。</h1>
+            <p>
+              式場の初期見積もりは最低ランクの構成で作られがちです。項目を揃えて比べ、「上がりやすい分」まで見える化すると、本当の総額で選べます。
+            </p>
+          </section>
+        ) : (
+          <p className="hero-compact">
+            {tab === 'compare'
+              ? '項目を揃えて、式場を横並びで比べます。'
+              : '「上がりやすい分」まで含めた、総額の目安です。'}
+          </p>
+        )}
         <div
           id="main-panel"
           role="tabpanel"
           aria-labelledby={`tab-${tab}`}
         >
-          {tab === 'estimate' && <EstimateEditor />}
-          {tab === 'compare' && <Comparison />}
-          {tab === 'simulate' && <Simulator />}
+          {tab === 'estimate' && (
+            <EstimateEditor onShowComparison={() => goTo('compare')} />
+          )}
+          {tab === 'compare' && (
+            <Comparison
+              onShowEstimate={() => goTo('estimate')}
+              onShowSimulation={() => goTo('simulate')}
+            />
+          )}
+          {tab === 'simulate' && (
+            <Simulator onShowEstimate={() => goTo('estimate')} />
+          )}
         </div>
       </main>
 

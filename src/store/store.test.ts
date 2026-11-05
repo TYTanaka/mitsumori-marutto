@@ -95,6 +95,66 @@ describe('app state reducer', () => {
     );
   });
 
+  it('clamps base guests to the valid range', () => {
+    const initial = createSeedState();
+    const venueId = initial.venues[0]!.id;
+    const guestsAfter = (baseGuests: number) =>
+      reducer(initial, { type: 'setBaseGuests', venueId, baseGuests })
+        .venues[0]?.baseGuests;
+
+    expect(guestsAfter(80)).toBe(80);
+    expect(guestsAfter(0)).toBe(1);
+    expect(guestsAfter(-20)).toBe(1);
+    expect(guestsAfter(45.9)).toBe(45);
+    expect(guestsAfter(5000)).toBe(1000);
+    expect(guestsAfter(Number.NaN)).toBe(1);
+  });
+
+  it('normalizes invalid guest counts when hydrating', () => {
+    const initial = createSeedState();
+    const broken: typeof initial = {
+      ...initial,
+      venues: initial.venues.map((venue) => ({ ...venue, baseGuests: 0 })),
+    };
+    const hydrated = reducer(initial, { type: 'hydrate', state: broken });
+
+    expect(hydrated.venues.every((venue) => venue.baseGuests >= 1)).toBe(
+      true,
+    );
+  });
+
+  it('rejects blank venue names and trims surrounding space', () => {
+    const initial = createSeedState();
+
+    const blanked = reducer(initial, {
+      type: 'renameVenue',
+      venueId: 'va',
+      name: '   ',
+    });
+    expect(blanked.venues[0].name).toBe('青山ガーデンテラス');
+
+    const renamed = reducer(initial, {
+      type: 'renameVenue',
+      venueId: 'va',
+      name: '  新しい式場  ',
+    });
+    expect(renamed.venues[0].name).toBe('新しい式場');
+  });
+
+  it('restores a fallback name for blank venue names when hydrating', () => {
+    const initial = createSeedState();
+    const broken: typeof initial = {
+      ...initial,
+      venues: initial.venues.map((venue, index) =>
+        index === 0 ? { ...venue, name: '' } : venue,
+      ),
+    };
+    const hydrated = reducer(initial, { type: 'hydrate', state: broken });
+
+    expect(hydrated.venues[0].name).toBe('式場1');
+    expect(hydrated.venues[1].name).toBe('横浜ベイサイドホール');
+  });
+
   it('resets to the seed state', () => {
     const modified = reducer(createSeedState(), {
       type: 'removeVenue',

@@ -16,6 +16,21 @@ export function categoryTotal(
   );
 }
 
+/**
+ * How many line items a venue has registered in a category.
+ * Zero means the category is not on that venue's estimate at all (未計上),
+ * which is different from a registered item whose amount happens to be ¥0.
+ */
+export function categoryItemCount(
+  state: AppState,
+  venueId: string,
+  category: CategoryId,
+): number {
+  return venueItems(state, venueId).filter(
+    (item) => item.category === category,
+  ).length;
+}
+
 export function venueTotal(state: AppState, venueId: string): number {
   return venueItems(state, venueId).reduce(
     (total, item) => total + item.amount,
@@ -92,22 +107,33 @@ export function comparisonMatrix(state: AppState): {
   categories: CategoryId[];
   rows: {
     category: CategoryId;
-    cells: Record<string, number>;
+    /**
+     * Cell amount per venue. `null` means the venue has no line item in
+     * this category at all (未計上) — it must not be rendered as ¥0.
+     * A real `0` means an item is registered with an amount of ¥0.
+     */
+    cells: Record<string, number | null>;
     cheapestVenueId: string | null;
   }[];
   totals: Record<string, number>;
 } {
   const categories = CATEGORIES.map((category) => category.id);
   const rows = categories.map((category) => {
-    const cells: Record<string, number> = {};
+    const cells: Record<string, number | null> = {};
     let cheapestVenueId: string | null = null;
     let cheapestAmount = Infinity;
 
     for (const venue of state.venues) {
-      const amount = categoryTotal(state, venue.id, category);
+      const amount =
+        categoryItemCount(state, venue.id, category) === 0
+          ? null
+          : categoryTotal(state, venue.id, category);
       cells[venue.id] = amount;
 
-      if (amount > 0 && amount < cheapestAmount) {
+      // Only real, positive amounts compete for cheapest: a missing
+      // category (null) and a registered ¥0 item are both excluded,
+      // matching how the totals footnote describes the sums.
+      if (amount !== null && amount > 0 && amount < cheapestAmount) {
         cheapestAmount = amount;
         cheapestVenueId = venue.id;
       }

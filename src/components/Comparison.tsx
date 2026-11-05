@@ -1,15 +1,42 @@
+import { useState } from 'react';
 import { CATEGORY_LABELS } from '../lib/categories';
 import { comparisonMatrix, predictTotal } from '../lib/calc';
-import { yen } from '../lib/format';
+import { venueDisplayName, yen } from '../lib/format';
 import { useAppState } from '../store/appState';
+import { EmptyState } from './EmptyState';
 
-export function Comparison() {
+export function Comparison({
+  onShowEstimate,
+  onShowSimulation,
+}: {
+  onShowEstimate?: () => void;
+  onShowSimulation?: () => void;
+}) {
   const { state } = useAppState();
   const matrix = comparisonMatrix(state);
+  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
 
   if (state.venues.length === 0) {
-    return <p>式場がありません。</p>;
+    return (
+      <EmptyState
+        message="まだ式場が登録されていません。見積もりタブで式場を追加すると、ここで横並びに比べられます。"
+        actionLabel="見積もりタブで式場を追加する"
+        onAction={onShowEstimate}
+      />
+    );
   }
+
+  const selectedVenue =
+    state.venues.find((venue) => venue.id === selectedVenueId) ??
+    state.venues[0];
+  const selectedIndex = state.venues.indexOf(selectedVenue);
+
+  const cellContent = (amount: number | null | undefined) =>
+    amount === null || amount === undefined ? (
+      <span className="not-counted">—（未計上）</span>
+    ) : (
+      yen(amount)
+    );
 
   return (
     <>
@@ -18,9 +45,9 @@ export function Comparison() {
           <thead>
             <tr>
               <th scope="col">項目</th>
-              {state.venues.map((venue) => (
+              {state.venues.map((venue, index) => (
                 <th scope="col" key={venue.id}>
-                  {venue.name}
+                  {venueDisplayName(venue.name, index)}
                 </th>
               ))}
             </tr>
@@ -29,16 +56,22 @@ export function Comparison() {
             {matrix.rows.map((row) => (
               <tr key={row.category}>
                 <th scope="row">{CATEGORY_LABELS[row.category]}</th>
-                {state.venues.map((venue) => (
-                  <td
-                    key={venue.id}
-                    className={
-                      row.cheapestVenueId === venue.id ? 'cheapest' : undefined
-                    }
-                  >
-                    {yen(row.cells[venue.id])}
-                  </td>
-                ))}
+                {state.venues.map((venue) => {
+                  const amount = row.cells[venue.id];
+
+                  return (
+                    <td
+                      key={venue.id}
+                      className={
+                        row.cheapestVenueId === venue.id
+                          ? 'cheapest'
+                          : undefined
+                      }
+                    >
+                      {cellContent(amount)}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
             <tr className="total-row">
@@ -58,9 +91,71 @@ export function Comparison() {
           </tbody>
         </table>
       </div>
+
+      {/* Narrow screens (<=640px): one venue at a time as a vertical
+          list, per the SPEC fallback, instead of a wide table that
+          scrolls its row labels away. Toggled purely by CSS. */}
+      <div className="compare-mobile">
+        <div className="venue-switch" role="group" aria-label="表示する式場">
+          {state.venues.map((venue, index) => (
+            <button
+              key={venue.id}
+              type="button"
+              className="venue-switch-btn"
+              aria-pressed={venue.id === selectedVenue.id}
+              onClick={() => setSelectedVenueId(venue.id)}
+            >
+              {venueDisplayName(venue.name, index)}
+            </button>
+          ))}
+        </div>
+        <div className="compare-list">
+          {matrix.rows.map((row) => (
+            <div className="compare-list-row" key={row.category}>
+              <span className="compare-list-label">
+                {CATEGORY_LABELS[row.category]}
+                {row.cheapestVenueId === selectedVenue.id && (
+                  <span className="cheapest-tag">最安</span>
+                )}
+              </span>
+              <span className="compare-list-value">
+                {cellContent(row.cells[selectedVenue.id])}
+              </span>
+            </div>
+          ))}
+          <div className="compare-list-row total">
+            <span className="compare-list-label">初期総額</span>
+            <span className="compare-list-value">
+              {yen(matrix.totals[selectedVenue.id])}
+            </span>
+          </div>
+          <div className="compare-list-row predict">
+            <span className="compare-list-label">予測総額（中央値）</span>
+            <span className="compare-list-value">
+              {yen(predictTotal(state, selectedVenue.id).mid)}
+            </span>
+          </div>
+        </div>
+        <p className="muted compare-mobile-name">
+          表示中：{venueDisplayName(selectedVenue.name, selectedIndex)}
+        </p>
+      </div>
+
       <p className="muted">
-        各カテゴリで最も安い式場を色付けしています。予測総額はシミュレーションタブの想定に基づく目安です。
+        「—（未計上）」は、その式場の見積もりにそのカテゴリの項目が1件も含まれていないことを示します。初期総額は未計上カテゴリを0円として合算しているため、項目が揃っていない式場の総額は実際にかかる金額より低く見えることがあります。各カテゴリで最も安い式場を色付けしています。予測総額はシミュレーションタブの想定に基づく目安です。
       </p>
+
+      {onShowSimulation && (
+        <div className="next-step">
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={onShowSimulation}
+          >
+            総額シミュレーションで予測する
+          </button>
+        </div>
+      )}
     </>
   );
 }

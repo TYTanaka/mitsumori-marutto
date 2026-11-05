@@ -1,17 +1,20 @@
-@import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;600;700&display=swap');
-
+/* Fonts are loaded once via the <link> in index.html (L2). */
 :root {
   --bg: #FAF6EE;
   --surface: #FFFDF8;
   --surface-2: #F3ECDD;
   --ink: #2C2620;
-  --muted: #7A7163;
+  /* #6B6355 keeps muted text at >= 4.5:1 on every ground colour:
+     #FAF6EE 5.50:1 / #F3ECDD 5.04:1 / #FFFDF8 5.83:1 (WCAG relative
+     luminance, computed from the hex values). */
+  --muted: #6B6355;
   --line: #E3D9C6;
   --line-strong: #C9B995;
   --navy: #1F3A5F;
   --navy-deep: #16294A;
   --gold: #B8892E;
   --gold-soft: #F1E5C8;
+  --gold-soft-strong: #EDDCAB;
   --danger: #B3402E;
   --danger-soft: #F9E8E2;
   --r-md: 12px;
@@ -88,8 +91,8 @@ p {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 18px max(24px, calc((100vw - 1080px) / 2));
+  gap: 16px;
+  padding: 16px max(24px, calc((100vw - 1080px) / 2));
   background: rgb(255 253 248 / 90%);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(18px);
@@ -99,7 +102,7 @@ p {
 .brand-wrap {
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 12px;
 }
 
 .brand-mark {
@@ -135,20 +138,20 @@ p {
 .tabs {
   display: flex;
   gap: 4px;
-  padding: 5px;
+  padding: 4px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface-2);
 }
 
 .tab {
-  min-height: 42px;
-  padding: 8px 18px;
+  min-height: 44px;
+  padding: 8px 16px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
-  font-size: .9rem;
+  font-size: .875rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -171,7 +174,58 @@ p {
 }
 
 .hero {
-  padding: 60px 0 42px;
+  padding: 48px 0 40px;
+}
+
+/* Compact stand-in for the hero on the compare / simulate tabs (M1):
+   one quiet line so the tab content starts near the top. */
+.hero-compact {
+  margin: 0;
+  padding: 24px 0 4px;
+  color: var(--muted);
+  font-size: .875rem;
+}
+
+/* Save-failure notice (L5): quiet but unmissable, shown only while
+   localStorage writes are failing. */
+.save-error {
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border: 1px solid var(--danger);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: .875rem;
+  line-height: 1.7;
+}
+
+/* Shared empty state (H3). */
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 32px 24px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  text-align: center;
+}
+
+.empty-state p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.9;
+}
+
+/* End-of-tab next-step row (M2) and estimate-tab action row. */
+.next-step,
+.editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .hero h1 {
@@ -203,13 +257,13 @@ p {
   max-width: 780px;
   margin-bottom: 0;
   color: var(--muted);
-  font-size: .95rem;
+  font-size: 1rem;
   line-height: 2;
 }
 
 .card {
   margin-bottom: 24px;
-  padding: 28px;
+  padding: 24px;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -225,7 +279,7 @@ p {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .venue-head > label {
@@ -233,7 +287,7 @@ p {
   align-items: center;
   gap: 10px;
   color: var(--muted);
-  font-size: .85rem;
+  font-size: .875rem;
   white-space: nowrap;
 }
 
@@ -290,15 +344,16 @@ p {
 
 .item-list {
   display: grid;
-  gap: 10px;
-  padding: 18px 0;
+  gap: 8px;
+  padding: 16px 0;
   border-top: 1px solid var(--line);
 }
 
 .item-row {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 140px 40px;
-  gap: 10px;
+  /* Column widths formerly lived in the end-of-file patch block (M7). */
+  grid-template-columns: 178px minmax(0, 1fr) 150px 44px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -315,7 +370,7 @@ p {
 .icon-btn {
   display: grid;
   place-items: center;
-  width: 40px;
+  width: 44px;
   min-height: 44px;
   padding: 0;
   border: 0;
@@ -335,8 +390,11 @@ p {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding-bottom: 22px;
+  gap: 8px;
+  /* Dashed separator formerly lived in the end-of-file patch block (M7). */
+  padding-top: 12px;
+  padding-bottom: 24px;
+  border-top: 1px dashed var(--line-strong);
 }
 
 .add-row .select {
@@ -347,11 +405,11 @@ p {
   display: flex;
   align-items: baseline;
   justify-content: flex-end;
-  gap: 20px;
-  padding-top: 18px;
+  gap: 16px;
+  padding-top: 16px;
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: .9rem;
+  font-size: .875rem;
   text-align: right;
 }
 
@@ -371,7 +429,7 @@ p {
   padding: 10px 18px;
   border: 1px solid transparent;
   border-radius: var(--r-md);
-  font-size: .9rem;
+  font-size: .875rem;
   font-weight: 700;
   line-height: 1.5;
 }
@@ -403,14 +461,26 @@ p {
   background: var(--surface-2);
 }
 
+/* Delete stays visually demoted (M2): small and quiet until it is
+   armed, when the two-step confirmation gives it emphasis. */
 .btn-danger-ghost {
+  padding: 8px 12px;
   background: transparent;
   color: var(--danger);
+  font-size: .8rem;
+  opacity: .8;
 }
 
 .btn-danger-ghost:hover {
   border-color: rgb(179 64 46 / 20%);
   background: var(--danger-soft);
+  opacity: 1;
+}
+
+.btn-danger-ghost.is-confirming {
+  background: var(--danger-soft);
+  font-weight: 700;
+  opacity: 1;
 }
 
 .table-scroll {
@@ -431,7 +501,7 @@ p {
 
 .compare-table th,
 .compare-table td {
-  padding: 18px 22px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
@@ -442,10 +512,37 @@ p {
 }
 
 .compare-table thead th {
-  padding-block: 22px;
+  padding-block: 16px;
   background: var(--surface-2);
   color: var(--navy-deep);
-  font-size: .95rem;
+  font-size: 1rem;
+}
+
+/* First column (item names) stays pinned while the table scrolls
+   sideways, so a figure never loses its label (H2). */
+.compare-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.compare-table tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--line);
+  font-size: .875rem;
+}
+
+.compare-table .total-row th {
+  background: var(--surface);
+}
+
+.compare-table .predict-row th {
+  /* Opaque equivalent of the row's translucent navy tint, so the
+     pinned cell does not show scrolled content through it. */
+  background: #EFEFED;
 }
 
 .compare-table td {
@@ -453,17 +550,18 @@ p {
   font-variant-numeric: tabular-nums;
 }
 
-.compare-table tbody th {
-  font-size: .9rem;
-}
-
 .compare-table tbody tr:last-child > * {
   border-bottom: 0;
 }
 
 .compare-table .cheapest {
-  background: var(--gold-soft);
+  background: var(--gold-soft-strong);
   font-weight: 700;
+}
+
+.compare-table .not-counted {
+  color: var(--muted);
+  font-size: .875rem;
 }
 
 .total-row > * {
@@ -479,13 +577,13 @@ p {
 
 .flip-banner {
   margin-bottom: 24px;
-  padding: 18px 22px;
+  padding: 16px 24px;
   border: 1px solid var(--line-strong);
   border-left: 4px solid var(--gold);
   border-radius: var(--r-md);
   background: var(--gold-soft);
   color: var(--navy);
-  font-size: .95rem;
+  font-size: 1rem;
   line-height: 1.9;
 }
 
@@ -511,7 +609,7 @@ p {
 
 .bar-label {
   color: var(--muted);
-  font-size: .85rem;
+  font-size: .875rem;
 }
 
 .bar-track {
@@ -550,7 +648,7 @@ p {
 
 .bar-value {
   min-width: 242px;
-  font-size: .85rem;
+  font-size: .875rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
@@ -558,10 +656,10 @@ p {
 
 .sim-summary {
   margin: 24px 0;
-  padding: 16px 20px;
+  padding: 16px;
   border-radius: var(--r-md);
   background: var(--surface-2);
-  font-size: .9rem;
+  font-size: .875rem;
   line-height: 2;
 }
 
@@ -576,7 +674,7 @@ p {
 .assumption-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px 20px;
+  gap: 16px;
 }
 
 .assumption-grid label {
@@ -586,7 +684,7 @@ p {
 
 .assumption-grid label > span {
   color: var(--muted);
-  font-size: .85rem;
+  font-size: .875rem;
 }
 
 .assumption-grid .select {
@@ -599,9 +697,9 @@ p {
   align-items: center;
   gap: 12px;
   margin-top: 24px;
-  padding-top: 22px;
+  padding-top: 24px;
   border-top: 1px solid var(--line);
-  font-size: .9rem;
+  font-size: .875rem;
 }
 
 .delta-input {
@@ -614,10 +712,10 @@ p {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
   width: min(1080px, calc(100% - 48px));
   margin: 0 auto;
-  padding: 26px 0 40px;
+  padding: 24px 0 40px;
   border-top: 1px solid var(--line);
 }
 
@@ -633,8 +731,94 @@ p {
 
 .muted {
   color: var(--muted);
-  font-size: .85rem;
+  font-size: .875rem;
   line-height: 1.9;
+}
+
+/* Vertical single-venue comparison: narrow screens only (H2). */
+.compare-mobile {
+  display: none;
+}
+
+.venue-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.venue-switch-btn {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--navy);
+  font-size: .875rem;
+  font-weight: 700;
+}
+
+.venue-switch-btn[aria-pressed="true"] {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: white;
+}
+
+.compare-list {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.compare-list-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.compare-list-row:last-child {
+  border-bottom: 0;
+}
+
+.compare-list-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .875rem;
+}
+
+.compare-list-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.compare-list-row.total {
+  border-top: 3px double var(--line-strong);
+  font-weight: 700;
+}
+
+.compare-list-row.predict {
+  background: rgb(31 58 95 / 7%);
+  color: var(--navy-deep);
+  font-weight: 700;
+}
+
+.cheapest-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--gold-soft-strong);
+  color: var(--navy-deep);
+  font-size: .75rem;
+  font-weight: 700;
+}
+
+.compare-mobile-name {
+  margin-top: 12px;
 }
 
 @media (max-width: 640px) {
@@ -654,7 +838,8 @@ p {
   }
 
   .brand-sub {
-    font-size: .68rem;
+    /* Keep the .72rem floor on mobile too (L4). */
+    font-size: .72rem;
   }
 
   .tabs {
@@ -663,7 +848,7 @@ p {
 
   .tab {
     flex: 1;
-    min-height: 40px;
+    min-height: 44px;
     padding: 8px 6px;
     font-size: .8rem;
   }
@@ -674,7 +859,11 @@ p {
   }
 
   .hero {
-    padding: 34px 0 28px;
+    padding: 32px 0 24px;
+  }
+
+  .hero-compact {
+    padding: 16px 0 0;
   }
 
   .hero h1 {
@@ -684,7 +873,7 @@ p {
   }
 
   .hero p {
-    font-size: .85rem;
+    font-size: .875rem;
   }
 
   .card {
@@ -712,7 +901,7 @@ p {
   }
 
   .item-row {
-    grid-template-columns: minmax(0, 1fr) 110px 36px;
+    grid-template-columns: minmax(0, 1fr) 110px 44px;
     gap: 8px;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--line);
@@ -729,25 +918,22 @@ p {
 
   .item-row .input {
     padding-inline: 9px;
-    font-size: .85rem;
+    font-size: .875rem;
   }
 
   .icon-btn {
-    width: 36px;
+    width: 44px;
   }
 
-  .compare-table {
-    font-size: .9rem;
+  /* On narrow screens the wide table is replaced by the vertical
+     single-venue list (H2); the table remains for wider screens. */
+  .table-scroll {
+    display: none;
   }
 
-  .compare-table th,
-  .compare-table td {
-    padding: 15px 16px;
-  }
-
-  .compare-table thead th,
-  .compare-table tbody th {
-    font-size: .85rem;
+  .compare-mobile {
+    display: block;
+    margin-bottom: 20px;
   }
 
   .bar-row {
@@ -799,9 +985,3 @@ p {
     scroll-behavior: auto !important;
   }
 }
-
-/* ===== 磨き上げ（視覚レビュー対応） ===== */
-.item-row { grid-template-columns: 178px minmax(0, 1fr) 150px 40px; }
-.item-amount { text-align: right; font-variant-numeric: tabular-nums; }
-.compare-table .cheapest { background: #EDDCAB; }
-.add-row { border-top: 1px dashed var(--line-strong); padding-top: 12px; }
