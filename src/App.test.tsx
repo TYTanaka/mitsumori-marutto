@@ -196,6 +196,166 @@ describe('見積もりアプリ', () => {
     spy.mockRestore();
   });
 
+  it('どのタブにも h1 がちょうど1つある', () => {
+    render(<App />);
+
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: '最初の見積もりだけで、選んでいませんか。',
+      }),
+    ).toBeTruthy();
+    expect(document.querySelectorAll('h1')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('tab', { name: '比較' }));
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: '項目を揃えて、式場を横並びで比べます。',
+      }),
+    ).toBeTruthy();
+    expect(document.querySelectorAll('h1')).toHaveLength(1);
+
+    fireEvent.click(
+      screen.getByRole('tab', { name: '総額シミュレーション' }),
+    );
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: '「上がりやすい分」まで含めた、総額の目安です。',
+      }),
+    ).toBeTruthy();
+    expect(document.querySelectorAll('h1')).toHaveLength(1);
+  });
+
+  it('シミュレーションで未計上カテゴリのある式場に警告を引き継ぐ', () => {
+    const state = createSeedState();
+    state.items = state.items.filter(
+      (item) =>
+        !(
+          item.venueId === 'vc' &&
+          (item.category === 'photo' || item.category === 'other')
+        ),
+    );
+    localStorage.setItem('mitsumori-state-v1', JSON.stringify(state));
+
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole('tab', { name: '総額シミュレーション' }),
+    );
+
+    // Only the incomplete venue's card carries the warning.
+    expect(
+      screen.getAllByText(/カテゴリ未計上（/).length,
+    ).toBe(1);
+    expect(
+      screen.getByText(
+        /2カテゴリ未計上（写真・映像・その他）— 実際の総額はこれより高くなります/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('順位バナーに未計上を含む旨の但し書きが付く', () => {
+    const state = createSeedState();
+    // vc keeps only its venue fee, so it is predicted cheapest while
+    // eight categories are uncounted.
+    state.items = state.items.filter(
+      (item) => item.venueId !== 'vc' || item.category === 'venue',
+    );
+    localStorage.setItem('mitsumori-state-v1', JSON.stringify(state));
+
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole('tab', { name: '総額シミュレーション' }),
+    );
+
+    expect(
+      screen.getByText(/未計上カテゴリを含む式場があるため、この順位は暫定です/),
+    ).toBeTruthy();
+  });
+
+  it('入れ替わりが無くても、未計上の式場が予測最安なら暫定と知らせる', () => {
+    const state = createSeedState();
+    state.venues = state.venues.filter((venue) => venue.id === 'vc');
+    state.items = state.items.filter(
+      (item) =>
+        item.venueId === 'vc' &&
+        (item.category === 'venue' || item.category === 'food'),
+    );
+    localStorage.setItem('mitsumori-state-v1', JSON.stringify(state));
+
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole('tab', { name: '総額シミュレーション' }),
+    );
+
+    expect(
+      screen.getByText(
+        /予測総額が最も安い東京クラシックホテルには7カテゴリの未計上があるため、この順位は暫定です/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('人数を増やすと、人数連動の未計上がある式場では増額が過小だと知らせる', () => {
+    const state = createSeedState();
+    state.items = state.items.filter(
+      (item) =>
+        !(
+          item.venueId === 'vc' &&
+          (item.category === 'gifts' || item.category === 'paper')
+        ),
+    );
+    state.guestDelta = { ...state.guestDelta, vc: 10 };
+    localStorage.setItem('mitsumori-state-v1', JSON.stringify(state));
+
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole('tab', { name: '総額シミュレーション' }),
+    );
+
+    expect(
+      screen.getByText(
+        /人数に連動する未計上カテゴリ（引出物・ペーパーアイテム）があるため、増額は実際より小さく表示されています/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('比較の最安タグは、未計上のある式場では「計上分のみ」と限定する', () => {
+    const state = createSeedState();
+    state.items = state.items.filter(
+      (item) =>
+        !(
+          item.venueId === 'va' &&
+          (item.category === 'flowers' || item.category === 'photo')
+        ),
+    );
+    localStorage.setItem('mitsumori-state-v1', JSON.stringify(state));
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: '比較' }));
+
+    // The mobile list defaults to the first venue (va), which is
+    // cheapest in several categories but incomplete overall, so every
+    // one of its tags is qualified.
+    expect(
+      screen.getAllByText('最安（計上分のみ）').length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText('最安')).toBeNull();
+    expect(
+      screen.getByText(/この式場は2カテゴリが未計上です/),
+    ).toBeTruthy();
+    // Wide table: the venue's column head names the gap too.
+    expect(screen.getByText('2カテゴリ未計上')).toBeTruthy();
+  });
+
+  it('比較の最安タグは、項目が揃った式場ではそのまま「最安」と出す', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: '比較' }));
+
+    expect(screen.getAllByText('最安').length).toBeGreaterThan(0);
+    expect(screen.queryByText('最安（計上分のみ）')).toBeNull();
+  });
+
   it('式場名を空にして確定しても名前が残る', () => {
     render(<App />);
     const nameInput = screen.getByDisplayValue(

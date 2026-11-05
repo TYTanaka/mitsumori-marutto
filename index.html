@@ -4,13 +4,93 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="結婚式場の見積もりを共通項目で比較し、最終総額の目安を可視化する「みつもりまるっと」。初期見積もりの安さに引っ張られない式場選びを。" />
+    <meta name="theme-color" content="#16294A" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="みつもりまるっと" />
+    <meta property="og:title" content="みつもりまるっと | 結婚式見積もりの総額チェッカー" />
+    <meta property="og:description" content="結婚式場の見積もりを共通項目で比較し、最終総額の目安を可視化する「みつもりまるっと」。初期見積もりの安さに引っ張られない式場選びを。" />
+    <meta property="og:url" content="https://tytanaka.github.io/mitsumori-marutto/" />
+    <meta property="og:image" content="https://tytanaka.github.io/mitsumori-marutto/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="みつもりまるっと | 結婚式見積もりの総額チェッカー" />
+    <meta name="twitter:description" content="結婚式場の見積もりを共通項目で比較し、最終総額の目安を可視化する「みつもりまるっと」。初期見積もりの安さに引っ張られない式場選びを。" />
+    <meta name="twitter:image" content="https://tytanaka.github.io/mitsumori-marutto/og.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>みつもりまるっと | 結婚式見積もりの総額チェッカー</title>
+    <style>
+      /* Inline loading shell: painted from this HTML alone, before the
+         JS bundle arrives, so a slow connection never shows a blank
+         page. React replaces it when the app mounts. The colours and
+         type mirror the app's design tokens in src/index.css. */
+      .app-loading {
+        display: grid;
+        min-height: 100vh;
+        place-items: center;
+        padding: 24px;
+        background: #FAF6EE;
+        color: #2C2620;
+        font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", sans-serif;
+        text-align: center;
+      }
+      .app-loading-mark {
+        display: inline-grid;
+        place-items: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #1F3A5F;
+        color: #FFFDF8;
+        font-family: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
+        font-size: 1.9rem;
+      }
+      .app-loading-name {
+        margin: 18px 0 4px;
+        color: #16294A;
+        font-family: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: .04em;
+      }
+      .app-loading-sub {
+        margin: 0 0 20px;
+        color: #6B6355;
+        font-size: .875rem;
+      }
+      .app-loading-status {
+        margin: 0;
+        color: #6B6355;
+        font-size: .875rem;
+      }
+      .app-loading-status::after {
+        display: block;
+        width: 72px;
+        height: 3px;
+        margin: 14px auto 0;
+        border-radius: 3px;
+        background: #B8892E;
+        content: "";
+        animation: app-loading-pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes app-loading-pulse {
+        0%, 100% { opacity: .25; transform: scaleX(.6); }
+        50% { opacity: 1; transform: scaleX(1); }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="app-loading" role="status">
+        <div>
+          <span class="app-loading-mark" aria-hidden="true">み</span>
+          <p class="app-loading-name">みつもりまるっと</p>
+          <p class="app-loading-sub">結婚式見積もりの総額チェッカー</p>
+          <p class="app-loading-status">読み込み中…</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

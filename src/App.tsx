@@ -65,11 +65,14 @@ function Shell() {
             </p>
           </section>
         ) : (
-          <p className="hero-compact">
+          // Every tab carries exactly one <h1>: the full hero on the
+          // estimate tab, this compact one-liner (same styling) on the
+          // others, so the heading outline never loses its top level.
+          <h1 className="hero-compact">
             {tab === 'compare'
               ? '項目を揃えて、式場を横並びで比べます。'
               : '「上がりやすい分」まで含めた、総額の目安です。'}
-          </p>
+          </h1>
         )}
         <div
           id="main-panel"

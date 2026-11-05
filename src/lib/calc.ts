@@ -31,6 +31,36 @@ export function categoryItemCount(
   ).length;
 }
 
+/**
+ * Categories in which a venue has no line item at all (未計上), in
+ * CATEGORIES order. Predictions and totals for such a venue silently
+ * treat these as ¥0, so callers surface them as warnings wherever a
+ * total or ranking is presented as a basis for deciding.
+ */
+export function uncountedCategories(
+  state: AppState,
+  venueId: string,
+): CategoryId[] {
+  return CATEGORIES.filter(
+    (category) => categoryItemCount(state, venueId, category.id) === 0,
+  ).map((category) => category.id);
+}
+
+/**
+ * The subset of uncounted categories that scale with the guest count.
+ * When one of these is missing, the per-head conversion behind the
+ * guest-delta adjustment is understated, so a change in headcount
+ * looks smaller than it will really be.
+ */
+export function uncountedPerHeadCategories(
+  state: AppState,
+  venueId: string,
+): CategoryId[] {
+  return PER_HEAD_CATEGORIES.filter(
+    (category) => categoryItemCount(state, venueId, category) === 0,
+  );
+}
+
 export function venueTotal(state: AppState, venueId: string): number {
   return venueItems(state, venueId).reduce(
     (total, item) => total + item.amount,

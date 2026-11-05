@@ -10,6 +10,8 @@ import {
   rankingByBase,
   rankingByPredicted,
   rankingFlips,
+  uncountedCategories,
+  uncountedPerHeadCategories,
   venueTotal,
 } from './calc';
 
@@ -262,6 +264,52 @@ describe('calculations', () => {
     expect(rankingFlips(state)).toEqual([
       { venueId: 'v1', baseRank: 1, predictedRank: 2 },
       { venueId: 'v2', baseRank: 2, predictedRank: 1 },
+    ]);
+  });
+
+  it('lists categories with no items as uncounted, in category order', () => {
+    const state = fixture();
+
+    // v1 has items in venue/attire/food/gifts/paper only.
+    expect(uncountedCategories(state, 'v1')).toEqual([
+      'flowers',
+      'photo',
+      'production',
+      'other',
+    ]);
+    // v2 additionally lacks gifts and paper.
+    expect(uncountedCategories(state, 'v2')).toEqual([
+      'flowers',
+      'photo',
+      'gifts',
+      'paper',
+      'production',
+      'other',
+    ]);
+  });
+
+  it('treats a registered 0-yen item as counted, not uncounted', () => {
+    const state = fixture();
+    state.items.push({
+      id: 'i-zero',
+      venueId: 'v1',
+      category: 'flowers',
+      name: 'Free flowers',
+      amount: 0,
+    });
+
+    expect(uncountedCategories(state, 'v1')).not.toContain('flowers');
+  });
+
+  it('narrows uncounted categories to the per-head ones', () => {
+    const state = fixture();
+
+    // v1 counts food/gifts/paper, so nothing per-head is missing.
+    expect(uncountedPerHeadCategories(state, 'v1')).toEqual([]);
+    // v2 counts food only; gifts and paper scale with headcount.
+    expect(uncountedPerHeadCategories(state, 'v2')).toEqual([
+      'gifts',
+      'paper',
     ]);
   });
 

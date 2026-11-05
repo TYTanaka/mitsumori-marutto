@@ -1,6 +1,13 @@
 import type { UpliftLevel } from '../types';
-import { CATEGORIES } from '../lib/categories';
-import { perHeadCost, predictTotal, rankingFlips } from '../lib/calc';
+import { CATEGORIES, CATEGORY_LABELS } from '../lib/categories';
+import {
+  perHeadCost,
+  predictTotal,
+  rankingByPredicted,
+  rankingFlips,
+  uncountedCategories,
+  uncountedPerHeadCategories,
+} from '../lib/calc';
 import { man, signedMan, signedYen, venueDisplayName, yen } from '../lib/format';
 import { useAppState } from '../store/appState';
 import { EmptyState } from './EmptyState';
@@ -16,6 +23,24 @@ export function Simulator({
     venue,
     prediction: predictTotal(state, venue.id),
   }));
+  // Venues with categories missing from their estimate (未計上) are
+  // predicted as if those categories cost ¥0, so their totals and any
+  // ranking built on them are understated. That caveat has to travel
+  // with the numbers on this screen, where the final call is made.
+  const uncountedByVenue = new Map(
+    state.venues.map((venue) => [
+      venue.id,
+      uncountedCategories(state, venue.id),
+    ]),
+  );
+  const anyUncounted = [...uncountedByVenue.values()].some(
+    (list) => list.length > 0,
+  );
+  const predictedCheapestId = rankingByPredicted(state)[0];
+  const predictedCheapestUncounted =
+    predictedCheapestId !== undefined
+      ? (uncountedByVenue.get(predictedCheapestId) ?? [])
+      : [];
   const maxHigh = Math.max(0, ...predictions.map(({ prediction }) => prediction.high));
   const percent = (value: number) =>
     `${maxHigh > 0 ? (value / maxHigh) * 100 : 0}%`;
@@ -48,6 +73,14 @@ export function Simulator({
                   `${nameOf(flip.venueId)}（初期 ${flip.baseRank}位 → 予測 ${flip.predictedRank}位）`,
               )
               .join('、')}
+          {anyUncounted &&
+            '（未計上カテゴリを含む式場があるため、この順位は暫定です）'}
+        </div>
+      )}
+
+      {flips.length === 0 && predictedCheapestUncounted.length > 0 && (
+        <div className="flip-banner" role="note">
+          {`予測総額が最も安い${nameOf(predictedCheapestId)}には${predictedCheapestUncounted.length}カテゴリの未計上があるため、この順位は暫定です。実際の総額はこれより高くなります。`}
         </div>
       )}
 
@@ -57,10 +90,24 @@ export function Simulator({
 
       {predictions.map(({ venue, prediction }, index) => {
         const { base, low, high, mid } = prediction;
+        const uncounted = uncountedByVenue.get(venue.id) ?? [];
+        const uncountedPerHead = uncountedPerHeadCategories(state, venue.id);
+        const delta = state.guestDelta[venue.id] ?? 0;
 
         return (
           <section className="card sim-card" key={venue.id}>
-            <h3>{venueDisplayName(venue.name, index)}</h3>
+            <h2 className="sim-venue-name">
+              {venueDisplayName(venue.name, index)}
+            </h2>
+            {uncounted.length > 0 && (
+              <p className="uncounted-warning">
+                {uncounted.length}カテゴリ未計上（
+                {uncounted
+                  .map((category) => CATEGORY_LABELS[category])
+                  .join('・')}
+                ）— 実際の総額はこれより高くなります
+              </p>
+            )}
             <div className="bars">
               <div className="bar-row">
                 <span className="bar-label">初期総額</span>
@@ -146,6 +193,17 @@ export function Simulator({
                   <>想定人数を入力すると、1人あたりの金額で換算します</>
                 )}
               </span>
+              {delta !== 0 && uncountedPerHead.length > 0 && (
+                <p className="uncounted-warning delta-warning">
+                  人数に連動する未計上カテゴリ（
+                  {uncountedPerHead
+                    .map((category) => CATEGORY_LABELS[category])
+                    .join('・')}
+                  ）があるため、
+                  {delta > 0 ? '増額' : '減額'}
+                  は実際より小さく表示されています
+                </p>
+              )}
             </div>
           </section>
         );

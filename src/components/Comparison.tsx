@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { CATEGORY_LABELS } from '../lib/categories';
-import { comparisonMatrix, predictTotal } from '../lib/calc';
+import {
+  comparisonMatrix,
+  predictTotal,
+  uncountedCategories,
+} from '../lib/calc';
 import { venueDisplayName, yen } from '../lib/format';
 import { useAppState } from '../store/appState';
 import { EmptyState } from './EmptyState';
@@ -30,6 +34,16 @@ export function Comparison({
     state.venues.find((venue) => venue.id === selectedVenueId) ??
     state.venues[0];
   const selectedIndex = state.venues.indexOf(selectedVenue);
+  // A venue whose estimate is incomplete must not read as plainly
+  // "cheapest": its missing categories are summed as ¥0, so the badge
+  // is qualified and the gap is named next to the venue itself.
+  const uncountedByVenue = new Map(
+    state.venues.map((venue) => [
+      venue.id,
+      uncountedCategories(state, venue.id),
+    ]),
+  );
+  const selectedUncounted = uncountedByVenue.get(selectedVenue.id) ?? [];
 
   const cellContent = (amount: number | null | undefined) =>
     amount === null || amount === undefined ? (
@@ -48,6 +62,12 @@ export function Comparison({
               {state.venues.map((venue, index) => (
                 <th scope="col" key={venue.id}>
                   {venueDisplayName(venue.name, index)}
+                  {(uncountedByVenue.get(venue.id)?.length ?? 0) > 0 && (
+                    <span className="venue-uncounted">
+                      {uncountedByVenue.get(venue.id)!.length}
+                      カテゴリ未計上
+                    </span>
+                  )}
                 </th>
               ))}
             </tr>
@@ -109,13 +129,23 @@ export function Comparison({
             </button>
           ))}
         </div>
+        {selectedUncounted.length > 0 && (
+          <p className="uncounted-warning">
+            この式場は{selectedUncounted.length}
+            カテゴリが未計上です。初期総額・予測総額は実際より低く表示されます。
+          </p>
+        )}
         <div className="compare-list">
           {matrix.rows.map((row) => (
             <div className="compare-list-row" key={row.category}>
               <span className="compare-list-label">
                 {CATEGORY_LABELS[row.category]}
                 {row.cheapestVenueId === selectedVenue.id && (
-                  <span className="cheapest-tag">最安</span>
+                  <span className="cheapest-tag">
+                    {selectedUncounted.length > 0
+                      ? '最安（計上分のみ）'
+                      : '最安'}
+                  </span>
                 )}
               </span>
               <span className="compare-list-value">

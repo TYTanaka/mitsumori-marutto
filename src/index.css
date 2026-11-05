@@ -178,12 +178,15 @@ p {
 }
 
 /* Compact stand-in for the hero on the compare / simulate tabs (M1):
-   one quiet line so the tab content starts near the top. */
+   one quiet line so the tab content starts near the top. It is the
+   tab's <h1> (every tab keeps exactly one), so the weight is pinned
+   to the same value the <p> version rendered with. */
 .hero-compact {
   margin: 0;
   padding: 24px 0 4px;
   color: var(--muted);
   font-size: .875rem;
+  font-weight: 400;
 }
 
 /* Save-failure notice (L5): quiet but unmissable, shown only while
@@ -564,6 +567,16 @@ p {
   font-size: .875rem;
 }
 
+/* Column-head note marking a venue whose estimate is incomplete, so
+   its highlighted "cheapest" cells are read in that context. */
+.compare-table .venue-uncounted {
+  display: block;
+  margin-top: 2px;
+  color: var(--danger);
+  font-size: .75rem;
+  font-weight: 700;
+}
+
 .total-row > * {
   border-top: 3px double var(--line-strong);
   font-weight: 700;
@@ -587,12 +600,31 @@ p {
   line-height: 1.9;
 }
 
-.sim-card h3 {
+.sim-card .sim-venue-name {
   margin-bottom: 24px;
   color: var(--navy-deep);
   font-family: var(--font-serif);
   font-size: 1.3rem;
   font-weight: 700;
+}
+
+/* Caution carried with a figure that is understated because part of
+   the estimate is missing (未計上). Used on the simulation cards, in
+   the guest-delta row, and on the mobile comparison list. */
+.uncounted-warning {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 4px solid var(--gold);
+  border-radius: var(--r-md);
+  background: var(--gold-soft);
+  color: var(--navy-deep);
+  font-size: .875rem;
+  line-height: 1.8;
+}
+
+.delta-row .uncounted-warning {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .bars {
