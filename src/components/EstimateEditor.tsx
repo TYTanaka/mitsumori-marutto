@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import type { CategoryId } from '../types';
-import { CATEGORIES } from '../lib/categories';
-import { venueItems, venueTotal } from '../lib/calc';
+import type { CategoryId, LineItem } from '../types';
+import { CATEGORIES, categoryExamples, suggestCategory } from '../lib/categories';
+import {
+  effectiveItemAmount,
+  venueItems,
+  venueTotal,
+} from '../lib/calc';
 import { yen } from '../lib/format';
-import { MAX_BASE_GUESTS, MIN_BASE_GUESTS } from '../lib/guests';
+import { parseCountInput, parseYenInput } from '../lib/parse';
 import { useAppState } from '../store/appState';
 import { EmptyState } from './EmptyState';
 
@@ -66,10 +70,12 @@ function GuestsInput({
   const commit = () => {
     if (draft === null) return;
 
-    const parsed = Number.parseInt(draft, 10);
-    if (!Number.isNaN(parsed)) {
+    // Full-width digits are normalized before parsing, so 「６０」
+    // typed with an IME commits as 60 instead of being discarded.
+    const parsed = parseCountInput(draft);
+    if (parsed.ok) {
       // The reducer clamps this to the valid range (minimum 1).
-      dispatch({ type: 'setBaseGuests', venueId, baseGuests: parsed });
+      dispatch({ type: 'setBaseGuests', venueId, baseGuests: parsed.value });
     }
     // Empty or unparseable input discards the draft, so the field falls
     // back to the last valid stored value instead of staying blank.
@@ -81,10 +87,8 @@ function GuestsInput({
       想定人数
       <input
         className="input guests-input"
-        type="number"
+        type="text"
         inputMode="numeric"
-        min={MIN_BASE_GUESTS}
-        max={MAX_BASE_GUESTS}
         value={draft ?? String(baseGuests)}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
@@ -95,6 +99,310 @@ function GuestsInput({
         }}
       />
     </label>
+  );
+}
+
+/**
+ * Amount field for a 合計 (total) line item. Holds a local draft while
+ * editing: text that parses (after full-width normalization) commits
+ * immediately so totals update live; a leading minus is honoured so
+ * discount lines reduce the total. Text that cannot be parsed is kept
+ * in the field while typing, and on blur it is rejected with an error
+ * message and the field reverts — it never silently becomes ¥0.
+ */
+function AmountInput({
+  item,
+  onError,
+}: {
+  item: LineItem;
+  onError: (message: string | null) => void;
+}) {
+  const { dispatch } = useAppState();
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const update = (next: LineItem) => dispatch({ type: 'updateItem', item: next });
+
+  const handleChange = (raw: string) => {
+    setDraft(raw);
+
+    if (raw.trim() === '') {
+      // Clearing the field returns the row to 未入力.
+      update({ ...item, amount: 0, amountSet: false });
+      onError(null);
+      return;
+    }
+
+    const parsed = parseYenInput(raw);
+    if (parsed.ok) {
+      update({ ...item, amount: parsed.value, amountSet: true });
+      onError(null);
+    }
+    // Unparseable text (e.g. a lone "-") may still be mid-typing:
+    // keep the draft and wait for blur before judging it.
+  };
+
+  const handleBlur = () => {
+    if (draft === null) return;
+
+    if (draft.trim() !== '' && !parseYenInput(draft).ok) {
+      onError(
+        '金額として読み取れませんでした。数字以外の文字が混ざっていないかご確認ください（全角数字は自動で変換されます）。',
+      );
+    } else {
+      onError(null);
+    }
+    setDraft(null);
+  };
+
+  return (
+    <input
+      className="input item-amount"
+      aria-label="金額"
+      type="text"
+      inputMode="numeric"
+      placeholder={item.amountSet ? '0' : '未入力'}
+      value={
+        draft ??
+        (item.amountSet ? item.amount.toLocaleString('ja-JP') : '')
+      }
+      onChange={(event) => handleChange(event.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
+/**
+ * Unit-price field for a 単価×人数 line item. Same draft pattern as
+ * AmountInput; committing a unit price stores it together with the
+ * derived total (unit price × base guests), and totals keep following
+ * the guest count from then on.
+ */
+function UnitPriceInput({
+  item,
+  baseGuests,
+  onError,
+}: {
+  item: LineItem;
+  baseGuests: number;
+  onError: (message: string | null) => void;
+}) {
+  const { dispatch } = useAppState();
+  const [draft, setDraft] = useState<string | null>(null);
+  const unitPrice = item.unitPrice ?? 0;
+
+  const handleChange = (raw: string) => {
+    setDraft(raw);
+
+    if (raw.trim() === '') {
+      dispatch({
+        type: 'updateItem',
+        item: { ...item, unitPrice: 0, amount: 0, amountSet: false },
+      });
+      onError(null);
+      return;
+    }
+
+    const parsed = parseYenInput(raw);
+    if (parsed.ok && parsed.value >= 0) {
+      dispatch({
+        type: 'updateItem',
+        item: {
+          ...item,
+          unitPrice: parsed.value,
+          amount: parsed.value * baseGuests,
+          amountSet: true,
+        },
+      });
+      onError(null);
+    }
+  };
+
+  const handleBlur = () => {
+    if (draft === null) return;
+
+    const parsed = parseYenInput(draft);
+    if (draft.trim() !== '' && (!parsed.ok || parsed.value < 0)) {
+      onError(
+        '単価として読み取れませんでした。0以上の数字で入力してください（全角数字は自動で変換されます）。',
+      );
+    } else {
+      onError(null);
+    }
+    setDraft(null);
+  };
+
+  return (
+    <input
+      className="input item-amount"
+      aria-label="単価"
+      type="text"
+      inputMode="numeric"
+      placeholder={item.amountSet ? '0' : '未入力'}
+      value={
+        draft ?? (item.amountSet ? unitPrice.toLocaleString('ja-JP') : '')
+      }
+      onChange={(event) => handleChange(event.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
+function ItemRow({
+  item,
+  baseGuests,
+}: {
+  item: LineItem;
+  baseGuests: number;
+}) {
+  const { state, dispatch } = useAppState();
+  const [amountError, setAmountError] = useState<string | null>(null);
+  const mode = item.mode ?? 'total';
+  const effective = effectiveItemAmount(state, item);
+  const suggestion = suggestCategory(item.name);
+  const showSuggestion = suggestion !== null && suggestion !== item.category;
+  const suggestionLabel = showSuggestion
+    ? CATEGORIES.find((category) => category.id === suggestion)?.label
+    : null;
+
+  const setMode = (nextMode: 'total' | 'perHead') => {
+    if (nextMode === mode) return;
+
+    if (nextMode === 'perHead') {
+      const unitPrice =
+        baseGuests > 0 ? Math.round(effective / baseGuests) : 0;
+      dispatch({
+        type: 'updateItem',
+        item: {
+          ...item,
+          mode: 'perHead',
+          unitPrice,
+          amount: unitPrice * baseGuests,
+        },
+      });
+    } else {
+      dispatch({
+        type: 'updateItem',
+        item: { ...item, mode: 'total', amount: effective },
+      });
+    }
+  };
+
+  return (
+    <div
+      className={
+        effective < 0 ? 'item-row item-row--discount' : 'item-row'
+      }
+    >
+      <select
+        className="select"
+        aria-label="項目のカテゴリ"
+        value={item.category}
+        onChange={(event) =>
+          dispatch({
+            type: 'updateItem',
+            item: {
+              ...item,
+              category: event.target.value as CategoryId,
+            },
+          })
+        }
+      >
+        {CATEGORIES.map((category) => (
+          <option key={category.id} value={category.id}>
+            {category.label}
+          </option>
+        ))}
+      </select>
+      <input
+        className="input item-name"
+        aria-label="項目名"
+        placeholder="項目名"
+        value={item.name}
+        onChange={(event) =>
+          dispatch({
+            type: 'updateItem',
+            item: { ...item, name: event.target.value },
+          })
+        }
+      />
+      {mode === 'perHead' ? (
+        <UnitPriceInput
+          item={item}
+          baseGuests={baseGuests}
+          onError={setAmountError}
+        />
+      ) : (
+        <AmountInput item={item} onError={setAmountError} />
+      )}
+      <button
+        className="icon-btn"
+        type="button"
+        aria-label="削除"
+        onClick={() => dispatch({ type: 'removeItem', itemId: item.id })}
+      >
+        ×
+      </button>
+
+      <div className="item-sub">
+        <label className="mode-select">
+          入力方法
+          <select
+            className="select"
+            aria-label="金額の入力方法"
+            value={mode}
+            onChange={(event) =>
+              setMode(event.target.value as 'total' | 'perHead')
+            }
+          >
+            <option value="total">合計</option>
+            <option value="perHead">単価×人数</option>
+          </select>
+        </label>
+        {mode === 'perHead' && (
+          <span className="perhead-result">
+            単価 × {baseGuests}名 = <strong>{yen(effective)}</strong>
+          </span>
+        )}
+        {effective < 0 && <span className="discount-tag">値引き</span>}
+        {mode === 'total' && item.amountSet && item.amount === 0 && (
+          <span className="zero-tag">¥0で登録</span>
+        )}
+      </div>
+
+      {showSuggestion && suggestion !== null && (
+        <p className="item-suggest">
+          項目名からすると「{suggestionLabel}」かもしれません。
+          <button
+            type="button"
+            className="suggest-btn"
+            onClick={() =>
+              dispatch({
+                type: 'updateItem',
+                item: { ...item, category: suggestion },
+              })
+            }
+          >
+            {suggestionLabel}に変更する
+          </button>
+        </p>
+      )}
+
+      {amountError && (
+        <p className="item-error" role="alert">
+          {amountError}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -119,144 +427,113 @@ export function EstimateEditor({
 
   return (
     <>
-      {state.venues.map((venue) => (
-        <section className="card venue-card" key={venue.id}>
-          <div className="venue-head">
-            <VenueNameInput venueId={venue.id} name={venue.name} />
-            <GuestsInput venueId={venue.id} baseGuests={venue.baseGuests} />
-            <button
-              className={
-                confirmingId === venue.id
-                  ? 'btn btn-danger-ghost is-confirming'
-                  : 'btn btn-danger-ghost'
-              }
-              type="button"
-              onClick={() => {
-                if (confirmingId === venue.id) {
-                  dispatch({ type: 'removeVenue', venueId: venue.id });
-                  setConfirmingId(null);
-                } else {
-                  setConfirmingId(venue.id);
+      {state.venues.map((venue) => {
+        const items = venueItems(state, venue.id);
+        const unsetCount = items.filter((item) => !item.amountSet).length;
+        // The add-row starts from the category of the venue's most
+        // recent row — estimates are grouped by category, so the next
+        // line usually continues the previous one — falling back to
+        // 挙式・会場, where most estimates begin.
+        const addCategory =
+          categories[venue.id] ??
+          items[items.length - 1]?.category ??
+          'venue';
+
+        return (
+          <section className="card venue-card" key={venue.id}>
+            <div className="venue-head">
+              <VenueNameInput venueId={venue.id} name={venue.name} />
+              <GuestsInput venueId={venue.id} baseGuests={venue.baseGuests} />
+              <button
+                className={
+                  confirmingId === venue.id
+                    ? 'btn btn-danger-ghost is-confirming'
+                    : 'btn btn-danger-ghost'
                 }
-              }}
-            >
-              {confirmingId === venue.id ? '本当に削除する？' : '式場を削除'}
-            </button>
-            {confirmingId === venue.id && (
+                type="button"
+                onClick={() => {
+                  if (confirmingId === venue.id) {
+                    dispatch({ type: 'removeVenue', venueId: venue.id });
+                    setConfirmingId(null);
+                  } else {
+                    setConfirmingId(venue.id);
+                  }
+                }}
+              >
+                {confirmingId === venue.id ? '本当に削除する？' : '式場を削除'}
+              </button>
+              {confirmingId === venue.id && (
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  onClick={() => setConfirmingId(null)}
+                >
+                  やめる
+                </button>
+              )}
+            </div>
+
+            {venue.memo && <p className="muted">{venue.memo}</p>}
+
+            <div className="item-list">
+              {items.map((item) => (
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  baseGuests={venue.baseGuests}
+                />
+              ))}
+            </div>
+
+            <div className="add-row">
+              <select
+                className="select"
+                aria-label="追加するカテゴリ"
+                value={addCategory}
+                onChange={(event) =>
+                  setCategories((previous) => ({
+                    ...previous,
+                    [venue.id]: event.target.value as CategoryId,
+                  }))
+                }
+              >
+                {CATEGORIES.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.label}
+                  </option>
+                ))}
+              </select>
               <button
                 className="btn btn-ghost"
                 type="button"
-                onClick={() => setConfirmingId(null)}
+                onClick={() =>
+                  dispatch({
+                    type: 'addItem',
+                    venueId: venue.id,
+                    category: addCategory,
+                  })
+                }
               >
-                やめる
+                項目を追加
               </button>
-            )}
-          </div>
+              <p className="category-hint">
+                例：{categoryExamples(addCategory)}
+              </p>
+            </div>
 
-          {venue.memo && <p className="muted">{venue.memo}</p>}
-
-          <div className="item-list">
-            {venueItems(state, venue.id).map((item) => (
-              <div className="item-row" key={item.id}>
-                <select
-                  className="select"
-                  aria-label="項目のカテゴリ"
-                  value={item.category}
-                  onChange={(event) =>
-                    dispatch({
-                      type: 'updateItem',
-                      item: {
-                        ...item,
-                        category: event.target.value as CategoryId,
-                      },
-                    })
-                  }
-                >
-                  {CATEGORIES.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="input item-name"
-                  aria-label="項目名"
-                  placeholder="項目名"
-                  value={item.name}
-                  onChange={(event) =>
-                    dispatch({
-                      type: 'updateItem',
-                      item: { ...item, name: event.target.value },
-                    })
-                  }
-                />
-                <input
-                  className="input item-amount"
-                  aria-label="金額"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="0"
-                  value={item.amount === 0 ? '' : item.amount.toLocaleString('ja-JP')}
-                  onChange={(event) => {
-                    const digits = event.target.value.replace(/[^0-9]/g, '');
-                    dispatch({
-                      type: 'updateItem',
-                      item: { ...item, amount: digits === '' ? 0 : Number(digits) },
-                    });
-                  }}
-                />
-                <button
-                  className="icon-btn"
-                  type="button"
-                  aria-label="削除"
-                  onClick={() =>
-                    dispatch({ type: 'removeItem', itemId: item.id })
-                  }
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="add-row">
-            <select
-              className="select"
-              aria-label="追加するカテゴリ"
-              value={categories[venue.id] ?? 'attire'}
-              onChange={(event) =>
-                setCategories((previous) => ({
-                  ...previous,
-                  [venue.id]: event.target.value as CategoryId,
-                }))
-              }
-            >
-              {CATEGORIES.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
-            <button
-              className="btn btn-ghost"
-              type="button"
-              onClick={() =>
-                dispatch({
-                  type: 'addItem',
-                  venueId: venue.id,
-                  category: categories[venue.id] ?? 'attire',
-                })
-              }
-            >
-              項目を追加
-            </button>
-          </div>
-
-          <footer className="venue-total">
-            合計 <strong>{yen(venueTotal(state, venue.id))}</strong>
-          </footer>
-        </section>
-      ))}
+            <footer className="venue-total">
+              {unsetCount > 0 && (
+                <span className="unset-note">
+                  金額が未入力の項目が{unsetCount}件あります
+                </span>
+              )}
+              <span>
+                合計 <strong>{yen(venueTotal(state, venue.id))}</strong>
+              </span>
+            </footer>
+          </section>
+        );
+      })}
       <div className="editor-actions">
         <button
           className="btn btn-ghost"

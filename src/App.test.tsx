@@ -367,4 +367,195 @@ describe('見積もりアプリ', () => {
 
     expect(nameInput.value).toBe('青山ガーデンテラス');
   });
+
+  it('値引きをマイナスで入力すると合計が減る', () => {
+    render(<App />);
+    // 青山's venue fee, ¥300,000 — the first venue's first row.
+    // 青山's venue fee (横浜's attire is also ¥300,000, so take the
+    // first match in DOM order, which is the first venue's first row).
+    const amountInput = screen.getAllByDisplayValue(
+      '300,000',
+    )[0] as HTMLInputElement;
+    expect(screen.getByText('¥2,056,000')).toBeTruthy();
+
+    fireEvent.change(amountInput, { target: { value: '-300000' } });
+
+    // +300,000 → -300,000, so the venue total drops by 600,000.
+    expect(screen.getByText('¥1,456,000')).toBeTruthy();
+    expect(screen.getByText('値引き')).toBeTruthy();
+  });
+
+  it('金額欄の全角数字は半角に変換されて取り込まれる', () => {
+    render(<App />);
+    // 青山's venue fee (横浜's attire is also ¥300,000, so take the
+    // first match in DOM order, which is the first venue's first row).
+    const amountInput = screen.getAllByDisplayValue(
+      '300,000',
+    )[0] as HTMLInputElement;
+
+    fireEvent.change(amountInput, { target: { value: '５０００' } });
+
+    // 2,056,000 - 300,000 + 5,000: never silently ¥0.
+    expect(screen.getByText('¥1,761,000')).toBeTruthy();
+  });
+
+  it('金額として読み取れない入力はエラー表示され、値は戻る', () => {
+    render(<App />);
+    // 青山's venue fee (横浜's attire is also ¥300,000, so take the
+    // first match in DOM order, which is the first venue's first row).
+    const amountInput = screen.getAllByDisplayValue(
+      '300,000',
+    )[0] as HTMLInputElement;
+
+    fireEvent.change(amountInput, { target: { value: 'abc123' } });
+    fireEvent.blur(amountInput);
+
+    expect(
+      screen.getByText(/金額として読み取れませんでした/),
+    ).toBeTruthy();
+    // The stored amount is untouched, so the total stands and the
+    // field falls back to the formatted stored value.
+    expect(screen.getByText('¥2,056,000')).toBeTruthy();
+    expect(amountInput.value).toBe('300,000');
+  });
+
+  it('単価×人数モードでは想定人数の変更に金額が追随する', () => {
+    render(<App />);
+    const modeSelect = screen.getAllByLabelText(
+      '金額の入力方法',
+    )[0] as HTMLSelectElement;
+
+    fireEvent.change(modeSelect, { target: { value: 'perHead' } });
+    // 300,000 ÷ 60名 = 単価5,000円, so the derived total is unchanged.
+    expect(document.body.textContent).toContain('単価 × 60名');
+    expect(screen.getByText('¥2,056,000')).toBeTruthy();
+
+    const guestsInput = screen.getAllByDisplayValue(
+      '60',
+    )[0] as HTMLInputElement;
+    fireEvent.change(guestsInput, { target: { value: '80' } });
+    fireEvent.blur(guestsInput);
+
+    // 5,000 × 80名 = 400,000: the venue total rises by 100,000.
+    expect(document.body.textContent).toContain('単価 × 80名');
+    expect(screen.getByText('¥2,156,000')).toBeTruthy();
+  });
+
+  it('シミュレーションに上振れ率の前提と確認質問リストを表示する', () => {
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole('tab', { name: '総額シミュレーション' }),
+    );
+
+    // The premise behind the prediction is on screen (M1): the rate
+    // table plus the per-category ranges next to each assumption.
+    expect(screen.getByText(/予測の前提（カテゴリ別の上振れ率）/)).toBeTruthy();
+    expect(screen.getAllByText('+40〜80%').length).toBeGreaterThan(0);
+
+    // Questions are generated for the venue (all assumptions 'high'
+    // for 青山 in the seed).
+    expect(
+      screen.getAllByText('式場への確認質問リスト').length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole('button', { name: '質問リストをコピーする' })
+        .length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('予算を設定すると式場ごとの予算内・超過が分かる', () => {
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole('tab', { name: '総額シミュレーション' }),
+    );
+
+    const budgetInput = screen.getByLabelText(
+      '予算の目安',
+    ) as HTMLInputElement;
+    fireEvent.change(budgetInput, { target: { value: '2500000' } });
+    fireEvent.blur(budgetInput);
+
+    // 青山's predicted range sits entirely above ¥2,500,000, while
+    // 横浜's range straddles it.
+    expect(screen.getAllByText('予算超過').length).toBeGreaterThan(0);
+    expect(screen.getByText('一部が予算を超える可能性')).toBeTruthy();
+
+    // The comparison tab carries the same budget as a diff row.
+    fireEvent.click(screen.getByRole('tab', { name: '比較' }));
+    expect(screen.getAllByText('予算との差（中央値）').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/（予算超過）/).length).toBeGreaterThan(0);
+  });
+
+  it('項目が未入力の式場は順位に入らず「未入力」と区別される', () => {
+    const state = createSeedState();
+    state.venues.push({
+      id: 'vz',
+      name: '未入力ホール',
+      memo: '',
+      baseGuests: 60,
+    });
+    state.assumptions.vz = { ...state.assumptions.va };
+    localStorage.setItem('mitsumori-state-v1', JSON.stringify(state));
+
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole('tab', { name: '総額シミュレーション' }),
+    );
+
+    expect(
+      screen.getByText(/まだ項目が入力されていません（未入力）/),
+    ).toBeTruthy();
+    // The ¥0 placeholder venue must not be named the predicted
+    // cheapest nor flip other venues' ranks.
+    expect(screen.queryByText(/未入力ホールには/)).toBeNull();
+  });
+
+  it('壊れたJSONの読み込みは理由を表示して現在のデータを守る', async () => {
+    render(<App />);
+
+    const fileInput = screen.getByLabelText(
+      'JSONファイルを選択',
+    ) as HTMLInputElement;
+    const broken = new File(['{not json'], 'broken.json', {
+      type: 'application/json',
+    });
+    fireEvent.change(fileInput, { target: { files: [broken] } });
+
+    expect(
+      await screen.findByText(/データを読み込めませんでした/),
+    ).toBeTruthy();
+    expect(screen.getByDisplayValue('青山ガーデンテラス')).toBeTruthy();
+  });
+
+  it('共有リンクとJSON書き出しの導線がある', () => {
+    render(<App />);
+
+    expect(
+      screen.getByRole('button', { name: '共有リンクをコピー' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'JSONを書き出す' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'JSONを読み込む' }),
+    ).toBeTruthy();
+  });
+
+  it('自動コピーできない環境では共有リンク自体を表示する', async () => {
+    render(<App />);
+
+    // jsdom has no Clipboard API, so the copy attempt falls back to
+    // presenting the link for manual copying.
+    fireEvent.click(
+      screen.getByRole('button', { name: '共有リンクをコピー' }),
+    );
+
+    const fallback = (await screen.findByLabelText(
+      '共有リンク',
+    )) as HTMLInputElement;
+    expect(fallback.value).toContain('#d=');
+    expect(
+      screen.getByText(/自動でコピーできませんでした/),
+    ).toBeTruthy();
+  });
 });

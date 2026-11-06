@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { CATEGORY_LABELS } from '../lib/categories';
 import {
   comparisonMatrix,
+  isVenueUnentered,
   predictTotal,
   uncountedCategories,
 } from '../lib/calc';
-import { venueDisplayName, yen } from '../lib/format';
+import { signedYen, venueDisplayName, yen } from '../lib/format';
 import { useAppState } from '../store/appState';
+import { BudgetBar } from './BudgetBar';
 import { EmptyState } from './EmptyState';
 
 export function Comparison({
@@ -18,6 +20,7 @@ export function Comparison({
 }) {
   const { state } = useAppState();
   const matrix = comparisonMatrix(state);
+  const budget = state.budget ?? null;
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
 
   if (state.venues.length === 0) {
@@ -44,6 +47,7 @@ export function Comparison({
     ]),
   );
   const selectedUncounted = uncountedByVenue.get(selectedVenue.id) ?? [];
+  const selectedUnentered = isVenueUnentered(state, selectedVenue.id);
 
   const cellContent = (amount: number | null | undefined) =>
     amount === null || amount === undefined ? (
@@ -54,6 +58,8 @@ export function Comparison({
 
   return (
     <>
+      <BudgetBar />
+
       <div className="table-scroll">
         <table className="compare-table">
           <thead>
@@ -62,11 +68,15 @@ export function Comparison({
               {state.venues.map((venue, index) => (
                 <th scope="col" key={venue.id}>
                   {venueDisplayName(venue.name, index)}
-                  {(uncountedByVenue.get(venue.id)?.length ?? 0) > 0 && (
-                    <span className="venue-uncounted">
-                      {uncountedByVenue.get(venue.id)!.length}
-                      カテゴリ未計上
-                    </span>
+                  {isVenueUnentered(state, venue.id) ? (
+                    <span className="venue-uncounted">未入力</span>
+                  ) : (
+                    (uncountedByVenue.get(venue.id)?.length ?? 0) > 0 && (
+                      <span className="venue-uncounted">
+                        {uncountedByVenue.get(venue.id)!.length}
+                        カテゴリ未計上
+                      </span>
+                    )
                   )}
                 </th>
               ))}
@@ -108,6 +118,25 @@ export function Comparison({
                 </td>
               ))}
             </tr>
+            {budget !== null && (
+              <tr className="budget-row">
+                <th scope="row">予算との差（中央値）</th>
+                {state.venues.map((venue) => {
+                  const diff = predictTotal(state, venue.id).mid - budget;
+
+                  return (
+                    <td
+                      key={venue.id}
+                      className={diff > 0 ? 'over-budget' : undefined}
+                    >
+                      {diff > 0
+                        ? `${signedYen(diff)}（予算超過）`
+                        : `${signedYen(diff)}（予算内）`}
+                    </td>
+                  );
+                })}
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -129,11 +158,17 @@ export function Comparison({
             </button>
           ))}
         </div>
-        {selectedUncounted.length > 0 && (
+        {selectedUnentered ? (
           <p className="uncounted-warning">
-            この式場は{selectedUncounted.length}
-            カテゴリが未計上です。初期総額・予測総額は実際より低く表示されます。
+            この式場はまだ項目が入力されていません（未入力）。金額はすべて未計上です。
           </p>
+        ) : (
+          selectedUncounted.length > 0 && (
+            <p className="uncounted-warning">
+              この式場は{selectedUncounted.length}
+              カテゴリが未計上です。初期総額・予測総額は実際より低く表示されます。
+            </p>
+          )
         )}
         <div className="compare-list">
           {matrix.rows.map((row) => (
@@ -165,6 +200,20 @@ export function Comparison({
               {yen(predictTotal(state, selectedVenue.id).mid)}
             </span>
           </div>
+          {budget !== null && (
+            <div className="compare-list-row budget">
+              <span className="compare-list-label">予算との差（中央値）</span>
+              <span className="compare-list-value">
+                {(() => {
+                  const diff =
+                    predictTotal(state, selectedVenue.id).mid - budget;
+                  return diff > 0
+                    ? `${signedYen(diff)}（予算超過）`
+                    : `${signedYen(diff)}（予算内）`;
+                })()}
+              </span>
+            </div>
+          )}
         </div>
         <p className="muted compare-mobile-name">
           表示中：{venueDisplayName(selectedVenue.name, selectedIndex)}

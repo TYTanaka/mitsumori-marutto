@@ -1008,6 +1008,359 @@ p {
   }
 }
 
+/* Item sub-line: entry-mode select, derived per-head total, and
+   markers that keep discount lines and registered ¥0 rows distinct
+   from untouched ones. */
+.item-sub {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  font-size: .8rem;
+}
+
+.mode-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.mode-select .select {
+  min-height: 44px;
+  padding-block: 6px;
+  font-size: .8rem;
+}
+
+.perhead-result {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.perhead-result strong {
+  color: var(--navy-deep);
+}
+
+.discount-tag,
+.zero-tag {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 700;
+}
+
+.discount-tag {
+  background: var(--gold-soft-strong);
+  color: var(--navy-deep);
+}
+
+.zero-tag {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.item-row--discount .item-amount {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.item-suggest {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.7;
+}
+
+.suggest-btn {
+  margin-left: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--navy);
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+.suggest-btn:hover {
+  background: var(--surface-2);
+}
+
+.item-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--danger);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: .8rem;
+  line-height: 1.7;
+}
+
+.category-hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.7;
+}
+
+.unset-note {
+  margin-right: auto;
+  color: var(--danger);
+  font-size: .8rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+/* Budget setting shared by the comparison and simulation tabs. */
+.budget-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  font-size: .875rem;
+}
+
+.budget-bar label {
+  color: var(--navy-deep);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.budget-input {
+  width: 160px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-clear {
+  min-height: 44px;
+  padding-block: 6px;
+}
+
+.budget-chip {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: .8rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.budget-chip--within {
+  background: var(--gold-soft-strong);
+  color: var(--navy-deep);
+}
+
+.budget-chip--borderline {
+  background: var(--gold-soft);
+  color: var(--navy);
+}
+
+.budget-chip--over {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.compare-table .budget-row > * {
+  background: var(--surface-2);
+  font-weight: 700;
+}
+
+.compare-table .budget-row .over-budget {
+  color: var(--danger);
+}
+
+.compare-list-row.budget {
+  background: var(--surface-2);
+  font-weight: 700;
+}
+
+/* Effective uplift range shown under each assumption select, so the
+   premise behind a prediction is visible where it is chosen. */
+.assumption-rate {
+  color: var(--navy);
+  font-size: .8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Generated venue questions on each simulation card. */
+.questions {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.questions-title {
+  margin: 0 0 8px;
+  color: var(--navy-deep);
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.questions-list {
+  margin: 12px 0 16px;
+  padding-left: 1.4em;
+  font-size: .875rem;
+  line-height: 1.9;
+}
+
+.questions-list li {
+  margin-bottom: 6px;
+}
+
+.questions-category {
+  margin-right: 8px;
+  color: var(--navy);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* The premise table: category uplift ranges with their rationale. */
+.premise-title {
+  margin: 0 0 12px;
+  color: var(--navy-deep);
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.premise-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.premise-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: .875rem;
+}
+
+.premise-table th,
+.premise-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.premise-table thead th {
+  background: var(--surface-2);
+  color: var(--navy-deep);
+}
+
+.premise-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.premise-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* Footer data actions: share link and JSON export/import. */
+.data-actions {
+  flex-basis: 100%;
+  display: grid;
+  gap: 10px;
+}
+
+.data-actions-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.data-notice,
+.data-error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  font-size: .8rem;
+  line-height: 1.7;
+}
+
+.data-notice {
+  border-left: 4px solid var(--gold);
+  background: var(--gold-soft);
+  color: var(--navy-deep);
+}
+
+.share-url-fallback {
+  width: 100%;
+  font-size: .75rem;
+}
+
+.data-error {
+  border-left: 4px solid var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* Print: the comparison matrix and simulation cards as a readable
+   handout. Navigation, marketing copy and editing controls are
+   dropped; the wide table is forced visible (the narrow list is a
+   screen-only fallback). */
+@media print {
+  .app-header,
+  .app-footer,
+  .hero,
+  .next-step,
+  .editor-actions,
+  .venue-switch {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  .container {
+    width: 100%;
+    padding-bottom: 0;
+  }
+
+  .card,
+  .table-scroll,
+  .compare-list,
+  .budget-bar {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .table-scroll {
+    display: block !important;
+    overflow: visible;
+  }
+
+  .compare-mobile {
+    display: none !important;
+  }
+
+  .bar,
+  .budget-chip,
+  .cheapest,
+  .predict-row > *,
+  .budget-row > * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

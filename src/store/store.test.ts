@@ -155,6 +155,91 @@ describe('app state reducer', () => {
     expect(hydrated.venues[1].name).toBe('横浜ベイサイドホール');
   });
 
+  it('clamps guest deltas to the promised range', () => {
+    const initial = createSeedState();
+
+    const over = reducer(initial, {
+      type: 'setGuestDelta',
+      venueId: 'va',
+      delta: 100,
+    });
+    expect(over.guestDelta.va).toBe(50);
+
+    const under = reducer(initial, {
+      type: 'setGuestDelta',
+      venueId: 'va',
+      delta: -100,
+    });
+    expect(under.guestDelta.va).toBe(-30);
+
+    const inside = reducer(initial, {
+      type: 'setGuestDelta',
+      venueId: 'va',
+      delta: 20,
+    });
+    expect(inside.guestDelta.va).toBe(20);
+  });
+
+  it('clamps out-of-range guest deltas when hydrating', () => {
+    const initial = createSeedState();
+    const broken: typeof initial = {
+      ...initial,
+      guestDelta: { va: 999, vb: -999, vc: 10 },
+    };
+    const hydrated = reducer(initial, { type: 'hydrate', state: broken });
+
+    expect(hydrated.guestDelta).toEqual({ va: 50, vb: -30, vc: 10 });
+  });
+
+  it('tracks whether an amount was entered, deriving it for old data', () => {
+    const initial = createSeedState();
+
+    // Freshly added rows start unset.
+    const added = reducer(initial, {
+      type: 'addItem',
+      venueId: 'va',
+      category: 'venue',
+    });
+    expect(added.items[added.items.length - 1]?.amountSet).toBe(false);
+
+    // Hydrated legacy data: a non-zero amount counts as entered, a
+    // zero row is indistinguishable from untouched and stays unset.
+    const legacy: typeof initial = {
+      ...initial,
+      items: [
+        ...initial.items,
+        {
+          id: 'legacy-zero',
+          venueId: 'va',
+          category: 'other',
+          name: '',
+          amount: 0,
+        },
+      ],
+    };
+    const hydrated = reducer(initial, { type: 'hydrate', state: legacy });
+
+    expect(
+      hydrated.items.find((item) => item.id === 'legacy-zero')?.amountSet,
+    ).toBe(false);
+    expect(
+      hydrated.items.find((item) => item.id === 'va-venue')?.amountSet,
+    ).toBe(true);
+  });
+
+  it('stores and clears the budget', () => {
+    const initial = createSeedState();
+
+    const withBudget = reducer(initial, {
+      type: 'setBudget',
+      budget: 3_000_000,
+    });
+    expect(withBudget.budget).toBe(3_000_000);
+
+    const cleared = reducer(withBudget, { type: 'setBudget', budget: null });
+    expect(cleared.budget).toBeNull();
+  });
+
   it('resets to the seed state', () => {
     const modified = reducer(createSeedState(), {
       type: 'removeVenue',

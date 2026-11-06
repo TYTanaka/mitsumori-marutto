@@ -5,13 +5,30 @@ export function venueItems(state: AppState, venueId: string): LineItem[] {
   return state.items.filter((item) => item.venueId === venueId);
 }
 
+/**
+ * The amount an item contributes to totals. Items entered as
+ * 単価×人数 (mode 'perHead') derive their amount from the unit price
+ * and the venue's current guest count, so their totals follow the
+ * headcount automatically; all other items use their stored amount.
+ */
+export function effectiveItemAmount(state: AppState, item: LineItem): number {
+  if (item.mode === 'perHead' && typeof item.unitPrice === 'number') {
+    const venue = state.venues.find((entry) => entry.id === item.venueId);
+    if (venue) return item.unitPrice * venue.baseGuests;
+  }
+
+  return item.amount;
+}
+
 export function categoryTotal(
   state: AppState,
   venueId: string,
   category: CategoryId,
 ): number {
   return venueItems(state, venueId).reduce(
-    (total, item) => total + (item.category === category ? item.amount : 0),
+    (total, item) =>
+      total +
+      (item.category === category ? effectiveItemAmount(state, item) : 0),
     0,
   );
 }
@@ -63,7 +80,7 @@ export function uncountedPerHeadCategories(
 
 export function venueTotal(state: AppState, venueId: string): number {
   return venueItems(state, venueId).reduce(
-    (total, item) => total + item.amount,
+    (total, item) => total + effectiveItemAmount(state, item),
     0,
   );
 }
@@ -100,7 +117,11 @@ export function predictTotal(state: AppState, venueId: string): Prediction {
     const base = categoryTotal(state, venueId, category.id);
     const level = state.assumptions[venueId]?.[category.id] ?? 'standard';
 
-    if (level === 'none') {
+    // A category whose net total is zero or negative (e.g. discount
+    // lines outweighing the items) is kept as-is: a discount does not
+    // "grow" the way an under-scoped category does, and multiplying a
+    // negative base by (1 + rate) would invert the low/high order.
+    if (level === 'none' || base <= 0) {
       return { category: category.id, base, low: base, high: base };
     }
 
@@ -180,8 +201,19 @@ export function comparisonMatrix(state: AppState): {
   return { categories, rows, totals };
 }
 
+/**
+ * A venue with no line items at all is 未入力 (not yet entered), not
+ * a ¥0 estimate. Its "total" is an absence of data, so it must not
+ * take part in rankings: a ¥0 placeholder would otherwise occupy
+ * first place and distort every other venue's rank.
+ */
+export function isVenueUnentered(state: AppState, venueId: string): boolean {
+  return venueItems(state, venueId).length === 0;
+}
+
 export function rankingByBase(state: AppState): string[] {
   return state.venues
+    .filter((venue) => !isVenueUnentered(state, venue.id))
     .map((venue) => ({ id: venue.id, total: venueTotal(state, venue.id) }))
     .sort((a, b) => a.total - b.total)
     .map((venue) => venue.id);
@@ -189,9 +221,26 @@ export function rankingByBase(state: AppState): string[] {
 
 export function rankingByPredicted(state: AppState): string[] {
   return state.venues
+    .filter((venue) => !isVenueUnentered(state, venue.id))
     .map((venue) => ({ id: venue.id, mid: predictTotal(state, venue.id).mid }))
     .sort((a, b) => a.mid - b.mid)
     .map((venue) => venue.id);
+}
+
+export type BudgetStatus = 'within' | 'borderline' | 'over';
+
+/**
+ * How a prediction sits against the budget cap: 'within' when even
+ * the high end fits, 'over' when even the low end exceeds it, and
+ * 'borderline' when the range straddles the budget.
+ */
+export function budgetStatus(
+  prediction: Prediction,
+  budget: number,
+): BudgetStatus {
+  if (prediction.high <= budget) return 'within';
+  if (prediction.low > budget) return 'over';
+  return 'borderline';
 }
 
 export function rankingFlips(state: AppState): {

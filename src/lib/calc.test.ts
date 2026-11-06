@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest';
 import type { AppState, Assumptions } from '../types';
 import { CATEGORIES, defaultAssumptions } from './categories';
 import {
+  budgetStatus,
   categoryItemCount,
   categoryTotal,
   comparisonMatrix,
+  effectiveItemAmount,
+  isVenueUnentered,
   perHeadCost,
   predictTotal,
   rankingByBase,
@@ -311,6 +314,95 @@ describe('calculations', () => {
       'gifts',
       'paper',
     ]);
+  });
+
+  it('subtracts discount lines with negative amounts from totals', () => {
+    const state = fixture();
+    state.items.push({
+      id: 'i-discount',
+      venueId: 'v1',
+      category: 'other',
+      name: 'キャンペーン値引き',
+      amount: -100_000,
+    });
+
+    expect(venueTotal(state, 'v1')).toBe(1_360_000);
+    expect(categoryTotal(state, 'v1', 'other')).toBe(-100_000);
+    expect(predictTotal(state, 'v1').base).toBe(1_360_000);
+  });
+
+  it('never applies uplift to a category whose net total is negative', () => {
+    const state = fixture();
+    state.items.push({
+      id: 'i-big-discount',
+      venueId: 'v1',
+      category: 'venue',
+      name: '会場値引き',
+      amount: -250_000,
+    });
+
+    // Venue category total is 200,000 - 250,000 = -50,000: a discount
+    // must not "grow", and low/high must not invert.
+    const venuePrediction = predictTotal(state, 'v1').byCategory.find(
+      (category) => category.category === 'venue',
+    );
+    expect(venuePrediction).toEqual({
+      category: 'venue',
+      base: -50_000,
+      low: -50_000,
+      high: -50_000,
+    });
+  });
+
+  it('derives per-head item amounts from the unit price and guest count', () => {
+    const state = fixture();
+    const perHeadItem = {
+      id: 'i-per-head',
+      venueId: 'v1',
+      category: 'food' as const,
+      name: '料理（単価）',
+      amount: 600_000,
+      mode: 'perHead' as const,
+      unitPrice: 10_000,
+    };
+    state.items.push(perHeadItem);
+
+    // v1 has 60 base guests: 10,000 × 60.
+    expect(effectiveItemAmount(state, perHeadItem)).toBe(600_000);
+    expect(categoryTotal(state, 'v1', 'food')).toBe(1_210_000);
+
+    // Raising the guest count makes the item follow automatically.
+    state.venues = state.venues.map((venue) =>
+      venue.id === 'v1' ? { ...venue, baseGuests: 80 } : venue,
+    );
+    expect(effectiveItemAmount(state, perHeadItem)).toBe(800_000);
+    expect(categoryTotal(state, 'v1', 'food')).toBe(1_410_000);
+  });
+
+  it('excludes venues with no items at all from rankings', () => {
+    const state = fixture();
+    state.venues.push({ id: 'v3', name: 'Venue 3', memo: '', baseGuests: 60 });
+    state.assumptions.v3 = defaultAssumptions();
+    state.guestDelta.v3 = 0;
+
+    expect(isVenueUnentered(state, 'v3')).toBe(true);
+    expect(isVenueUnentered(state, 'v1')).toBe(false);
+    // The empty venue's ¥0 must not occupy first place.
+    expect(rankingByBase(state)).toEqual(['v2', 'v1']);
+    expect(rankingByPredicted(state)).not.toContain('v3');
+    expect(
+      rankingFlips(state).some((flip) => flip.venueId === 'v3'),
+    ).toBe(false);
+  });
+
+  it('classifies predictions against a budget', () => {
+    const prediction = { base: 150, low: 100, high: 200, mid: 150, byCategory: [] };
+
+    expect(budgetStatus(prediction, 200)).toBe('within');
+    expect(budgetStatus(prediction, 250)).toBe('within');
+    expect(budgetStatus(prediction, 150)).toBe('borderline');
+    expect(budgetStatus(prediction, 100)).toBe('borderline');
+    expect(budgetStatus(prediction, 99)).toBe('over');
   });
 
   it('applies negative guest deltas and clamps prediction totals to zero', () => {

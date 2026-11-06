@@ -9,7 +9,8 @@ import {
 } from 'react';
 import type { AppState, CategoryId, LineItem, UpliftLevel } from '../types';
 import { defaultAssumptions } from '../lib/categories';
-import { clampBaseGuests } from '../lib/guests';
+import { clampBaseGuests, clampGuestDelta } from '../lib/guests';
+import { readSharedStateFromUrl } from '../lib/dataTransfer';
 import { createSeedState } from '../lib/seed';
 
 export type Action =
@@ -27,10 +28,16 @@ export type Action =
       level: UpliftLevel;
     }
   | { type: 'setGuestDelta'; venueId: string; delta: number }
+  | { type: 'setBudget'; budget: number | null }
   | { type: 'reset' }
   | { type: 'hydrate'; state: AppState };
 
 function normalizeState(state: AppState): AppState {
+  const guestDelta: Record<string, number> = {};
+  for (const [venueId, delta] of Object.entries(state.guestDelta ?? {})) {
+    guestDelta[venueId] = clampGuestDelta(delta);
+  }
+
   return {
     ...state,
     venues: state.venues.map((venue, index) => ({
@@ -41,6 +48,18 @@ function normalizeState(state: AppState): AppState {
       // to the positional default name instead.
       name: venue.name.trim() === '' ? `式場${index + 1}` : venue.name,
     })),
+    items: state.items.map((item) => ({
+      ...item,
+      // Data from before the amountSet flag existed: a non-zero amount
+      // must have been entered by someone, while a zero row is
+      // indistinguishable from an untouched one.
+      amountSet: item.amountSet ?? item.amount !== 0,
+    })),
+    guestDelta,
+    budget:
+      typeof state.budget === 'number' && Number.isFinite(state.budget)
+        ? state.budget
+        : null,
   };
 }
 
@@ -126,6 +145,7 @@ export function reducer(state: AppState, action: Action): AppState {
             category: action.category,
             name: '',
             amount: 0,
+            amountSet: false,
           },
         ],
       };
@@ -161,8 +181,20 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         guestDelta: {
           ...state.guestDelta,
-          [action.venueId]: action.delta,
+          // The range is enforced here, not only by the input's
+          // attributes, so out-of-range values can never reach the
+          // prediction math.
+          [action.venueId]: clampGuestDelta(action.delta),
         },
+      };
+
+    case 'setBudget':
+      return {
+        ...state,
+        budget:
+          action.budget !== null && Number.isFinite(action.budget)
+            ? Math.max(0, Math.trunc(action.budget))
+            : null,
       };
 
     case 'reset':
@@ -179,6 +211,18 @@ export function reducer(state: AppState, action: Action): AppState {
 const STORAGE_KEY = 'mitsumori-state-v1';
 
 function loadInitialState(): AppState {
+  // A shared link carries the sender's whole dataset; it wins over
+  // whatever this browser has stored, since opening the link is an
+  // explicit request to see that data.
+  try {
+    const shared = readSharedStateFromUrl();
+    if (shared !== null) {
+      return normalizeState(shared);
+    }
+  } catch {
+    // Malformed fragments fall through to the stored state.
+  }
+
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
 
@@ -202,7 +246,9 @@ function loadInitialState(): AppState {
     // Unavailable storage or invalid JSON falls back to the seed.
   }
 
-  return createSeedState();
+  // The seed goes through the same normalization as loaded data, so
+  // derived fields (amountSet, budget) are populated on first run too.
+  return normalizeState(createSeedState());
 }
 
 const AppStateContext = createContext<{

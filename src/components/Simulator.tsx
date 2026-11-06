@@ -1,6 +1,13 @@
+import { useState } from 'react';
 import type { UpliftLevel } from '../types';
-import { CATEGORIES, CATEGORY_LABELS } from '../lib/categories';
 import {
+  CATEGORIES,
+  CATEGORY_LABELS,
+  upliftRangeText,
+} from '../lib/categories';
+import {
+  budgetStatus,
+  isVenueUnentered,
   perHeadCost,
   predictTotal,
   rankingByPredicted,
@@ -9,8 +16,61 @@ import {
   uncountedPerHeadCategories,
 } from '../lib/calc';
 import { man, signedMan, signedYen, venueDisplayName, yen } from '../lib/format';
+import {
+  MAX_GUEST_DELTA,
+  MIN_GUEST_DELTA,
+} from '../lib/guests';
+import { parseCountInput } from '../lib/parse';
+import { generateQuestions, questionsToText } from '../lib/questions';
 import { useAppState } from '../store/appState';
+import { BudgetBar } from './BudgetBar';
 import { EmptyState } from './EmptyState';
+
+/**
+ * Guest-delta field with the standard draft pattern: raw text is held
+ * locally and committed on blur (Enter blurs). Full-width digits are
+ * normalized, and the store clamps the value to
+ * [MIN_GUEST_DELTA, MAX_GUEST_DELTA], so the field always settles on
+ * a value inside the promised range.
+ */
+function DeltaInput({
+  venueId,
+  delta,
+}: {
+  venueId: string;
+  delta: number;
+}) {
+  const { dispatch } = useAppState();
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const commit = () => {
+    if (draft === null) return;
+
+    const parsed = parseCountInput(draft);
+    if (parsed.ok) {
+      dispatch({ type: 'setGuestDelta', venueId, delta: parsed.value });
+    }
+    setDraft(null);
+  };
+
+  return (
+    <input
+      id={`delta-${venueId}`}
+      className="input delta-input"
+      type="text"
+      inputMode="numeric"
+      aria-describedby={`delta-range-${venueId}`}
+      value={draft ?? String(delta)}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
 
 export function Simulator({
   onShowEstimate,
@@ -18,6 +78,8 @@ export function Simulator({
   onShowEstimate?: () => void;
 }) {
   const { state, dispatch } = useAppState();
+  const [copiedVenueId, setCopiedVenueId] = useState<string | null>(null);
+  const budget = state.budget ?? null;
   const flips = rankingFlips(state);
   const predictions = state.venues.map((venue) => ({
     venue,
@@ -62,8 +124,21 @@ export function Simulator({
       : '式場';
   };
 
+  const copyQuestions = async (venueId: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedVenueId(venueId);
+    } catch {
+      // Clipboard unavailable (permissions, insecure context): leave
+      // the list on screen so it can still be copied by hand.
+      setCopiedVenueId(null);
+    }
+  };
+
   return (
     <>
+      <BudgetBar />
+
       {flips.length > 0 && (
         <div className="flip-banner" role="alert">
           {'初期見積もりの順位と予測総額の順位が入れ替わっています：' +
@@ -93,13 +168,21 @@ export function Simulator({
         const uncounted = uncountedByVenue.get(venue.id) ?? [];
         const uncountedPerHead = uncountedPerHeadCategories(state, venue.id);
         const delta = state.guestDelta[venue.id] ?? 0;
+        const unentered = isVenueUnentered(state, venue.id);
+        const questions = generateQuestions(state, venue.id);
+        const status = budget !== null ? budgetStatus(prediction, budget) : null;
 
         return (
           <section className="card sim-card" key={venue.id}>
             <h2 className="sim-venue-name">
               {venueDisplayName(venue.name, index)}
             </h2>
-            {uncounted.length > 0 && (
+            {unentered && (
+              <p className="uncounted-warning">
+                まだ項目が入力されていません（未入力）。この式場は順位に含まれていません。
+              </p>
+            )}
+            {!unentered && uncounted.length > 0 && (
               <p className="uncounted-warning">
                 {uncounted.length}カテゴリ未計上（
                 {uncounted
@@ -141,51 +224,55 @@ export function Simulator({
               予測中央値{' '}
               <strong className="mid-figure">{yen(mid)}</strong>（{man(mid)}）
               {' '}／ 初期から {signedYen(mid - base)}（{signedMan(mid - base)}）
+              {status !== null && (
+                <span className={`budget-chip budget-chip--${status}`}>
+                  {status === 'within'
+                    ? '予算内'
+                    : status === 'over'
+                      ? '予算超過'
+                      : '一部が予算を超える可能性'}
+                </span>
+              )}
             </p>
 
             <div className="assumption-grid">
-              {CATEGORIES.map((category) => (
-                <label key={category.id}>
-                  <span>{category.label}</span>
-                  <select
-                    className="select"
-                    value={
-                      state.assumptions[venue.id]?.[category.id] ?? 'standard'
-                    }
-                    onChange={(event) =>
-                      dispatch({
-                        type: 'setAssumption',
-                        venueId: venue.id,
-                        category: category.id,
-                        level: event.target.value as UpliftLevel,
-                      })
-                    }
-                  >
-                    <option value="none">そのまま</option>
-                    <option value="standard">標準</option>
-                    <option value="high">高め</option>
-                  </select>
-                </label>
-              ))}
+              {CATEGORIES.map((category) => {
+                const level =
+                  state.assumptions[venue.id]?.[category.id] ?? 'standard';
+
+                return (
+                  <label key={category.id}>
+                    <span>{category.label}</span>
+                    <select
+                      className="select"
+                      value={level}
+                      onChange={(event) =>
+                        dispatch({
+                          type: 'setAssumption',
+                          venueId: venue.id,
+                          category: category.id,
+                          level: event.target.value as UpliftLevel,
+                        })
+                      }
+                    >
+                      <option value="none">そのまま</option>
+                      <option value="standard">標準</option>
+                      <option value="high">高め</option>
+                    </select>
+                    <span className="assumption-rate">
+                      {upliftRangeText(category.id, level)}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
 
             <div className="delta-row">
               <label htmlFor={`delta-${venue.id}`}>ゲスト人数の増減</label>
-              <input
-                id={`delta-${venue.id}`}
-                className="input delta-input"
-                type="number"
-                min={-30}
-                max={50}
-                value={state.guestDelta[venue.id] ?? 0}
-                onChange={(event) =>
-                  dispatch({
-                    type: 'setGuestDelta',
-                    venueId: venue.id,
-                    delta: Number(event.target.value) || 0,
-                  })
-                }
-              />
+              <DeltaInput venueId={venue.id} delta={delta} />
+              <span className="muted" id={`delta-range-${venue.id}`}>
+                （{MIN_GUEST_DELTA}〜+{MAX_GUEST_DELTA}名まで）
+              </span>
               <span className="muted">
                 {venue.baseGuests >= 1 ? (
                   <>1人あたり {yen(perHeadCost(state, venue.id))} で換算</>
@@ -205,9 +292,77 @@ export function Simulator({
                 </p>
               )}
             </div>
+
+            {questions.length > 0 && (
+              <div className="questions">
+                <h3 className="questions-title">
+                  式場への確認質問リスト
+                </h3>
+                <p className="muted">
+                  未計上のカテゴリと、金額が上がりやすいカテゴリから自動で作りました。次の見学・打ち合わせで確認してみてください。
+                </p>
+                <ol className="questions-list">
+                  {questions.map((entry) => (
+                    <li key={entry.category}>
+                      <span className="questions-category">
+                        {CATEGORY_LABELS[entry.category]}
+                        {entry.missing ? '（未計上）' : ''}
+                      </span>
+                      {entry.question}
+                    </li>
+                  ))}
+                </ol>
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  onClick={() =>
+                    copyQuestions(
+                      venue.id,
+                      questionsToText(
+                        venueDisplayName(venue.name, index),
+                        questions,
+                      ),
+                    )
+                  }
+                >
+                  {copiedVenueId === venue.id
+                    ? 'コピーしました'
+                    : '質問リストをコピーする'}
+                </button>
+              </div>
+            )}
           </section>
         );
       })}
+
+      <section className="card premise-card">
+        <h2 className="premise-title">予測の前提（カテゴリ別の上振れ率）</h2>
+        <p className="muted">
+          上振れ率は、初期見積もりが最低ランクの構成で作られがちなカテゴリほど、打ち合わせを重ねるうちに金額が上がりやすいという一般的な目安をもとにした幅です。式場・プランによる差が大きいため、断定ではなく幅（レンジ）で示しています。気になるカテゴリは想定を「高め」に変えて、総額がどう動くか確認してください。
+        </p>
+        <div className="premise-scroll">
+          <table className="premise-table">
+            <thead>
+              <tr>
+                <th scope="col">カテゴリ</th>
+                <th scope="col">そのまま</th>
+                <th scope="col">標準</th>
+                <th scope="col">高め</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CATEGORIES.map((category) => (
+                <tr key={category.id}>
+                  <th scope="row">{category.label}</th>
+                  <td>{upliftRangeText(category.id, 'none')}</td>
+                  <td>{upliftRangeText(category.id, 'standard')}</td>
+                  <td>{upliftRangeText(category.id, 'high')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <p className="muted">
         上がり幅は一般的な目安です。実際の金額は式場・プランにより異なります。

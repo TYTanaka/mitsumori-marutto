@@ -1,5 +1,9 @@
 export function yen(n: number): string {
-  return '¥' + n.toLocaleString('ja-JP');
+  // Negative figures (discount lines, totals reduced by them) put the
+  // sign before the currency mark: -¥300,000, never ¥-300,000.
+  return n < 0
+    ? '-¥' + (-n).toLocaleString('ja-JP')
+    : '¥' + n.toLocaleString('ja-JP');
 }
 
 export function signedYen(diff: number): string {
